@@ -7,6 +7,7 @@ from shapely.geometry import box
 from fiona.crs import from_epsg
 import logging
 from shutil import copyfile
+from pkg_resources import parse_version
 
 import os
 from time import gmtime, strftime
@@ -87,8 +88,12 @@ class Simulation(object):
     def _merge_config(self, user_config, patch=True):
         if patch:
             if self.default_config is None:
-                # TODO: implement proper version handling, i.e. geq
-                self.default_config = DEFAULT_CONFIG_FILE_PER_VERSION[self.version]
+                # get most recent version still before this version
+                path_ver = [(path, parse_version(version))
+                            for version, path in DEFAULT_CONFIG_FILE_PER_VERSION.items()
+                            if parse_version(version) <= parse_version(self.version)]
+                path_ver.sort(key=lambda i: i[1])
+                self.default_config = path_ver[-1][0]
 
             default_config = toml.load(self.default_config)
             config = utils.general.merge_dicts(default_config, user_config)
@@ -100,26 +105,27 @@ class Simulation(object):
             return user_config
 
     def _split_config(self):
-        self.run_params = self.config.run_parameters
-        self.phase_params = self.config.phase
-        self.product_params = self.config.products
-        self.direction_params = self.config.directions
-        self.sensor_params = self.config.sensor
-        self.maket_params = self.config.maket
-        self.atmosphere_params = self.config.atmosphere
-        self.object3d_params = self.config.object3d
-        self.post_processing_params = self.config.postprocessing
+        self.run_params = self.config.get('run_parameters')
+        self.phase_params = self.config.get('phase')
+        self.product_params = self.config.get('products')
+        self.direction_params = self.config.get('directions')
+        self.sensor_params = self.config.get('sensor')
+        self.maket_params = self.config.get('maket')
+        self.atmosphere_params = self.config.get('atmosphere')
+        self.object3d_params = self.config.get('object3d')
+        self.post_processing_params = self.config.get('postprocessing')
 
         # ROI
         try:
-            self.ROI = gpd.GeoDataFrame({'geometry': box(self.config.geometry.ROI)},
-                                        crs=from_epsg(self.config.geometry.epsg))
-        except ValueError:
+            self.ROI = gpd.GeoDataFrame({'geometry': box(self.config['geometry']['ROI'])},
+                                        crs=from_epsg(self.config['geometry']['epsg']))
+        except KeyError:
             self.ROI = None
 
     def write(self):
         # Write atmosphere XML
-        cmp.Atmosphere(self.path, self.atmosphere_params, self.version).to_file()
+        atm = cmp.Atmosphere(self.path, self.atmosphere_params, self.version)
+        atm.to_file()
 
     def run(self):
         raise NotImplemented

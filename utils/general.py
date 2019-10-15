@@ -27,3 +27,18 @@ def merge_dicts(src_dict, patch_dict, add=False):
         else:
             src_dict[k] = v
     return src_dict
+
+
+class ObjectWrapper(object):
+    def __init__(self, obj):
+        self._wrapped_obj = obj
+    def __getattr__(self, attr):
+        if attr in self.__dict__:
+            return getattr(self, attr)
+        return getattr(self._wrapped_obj, attr)
+
+
+def NoneDict(ObjectWrapper):
+    def __getitem__(self, key):
+        if key not in self._wrapped_obj.keys():
+            return self

@@ -115,7 +115,7 @@ output_location ='output'
 #        heightOfSensor =
 #        minimumNumberOfDivisions =
 
-    [atmosphere.dimensons]
+    [atmosphere.dimensions]
 #        xAI =
 #        yAI =
 #        zAI =
@@ -139,7 +139,7 @@ output_location ='output'
 
         [atmosphere.optical_property.aerosol]
              cumulativeModelName = "RURALV23"       # aerosol vertical profile
-             optDepthfactor = 1                     # aerosol optical depth factor
+             optDepthFactor = 1                     # aerosol optical depth factor
              group = 1                              # same model for all parameters
              modelName = "RURALV23"                 # aerosol optical properties
 #             gasCumulativeModelName =
