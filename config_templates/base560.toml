@@ -1,0 +1,133 @@
+# Basic simulation for DART version 5.6.0
+
+# Global settings ######################################################################################################
+
+dart_path = "C:\DART_560_v739\dart.bat"      # put here your DART executable (version 5.6.0 executable)
+dart_version = '5.6.0'                       # make sure you really know what we are talking about
+
+simulation_name = "basic560_template_simulation"
+simulation_location =
+
+output_location =
+
+
+# Preprocessing ########################################################################################################
+
+## Geometry / coordinates
+#[geometry]
+#epsg = 4326
+#ROI = [-20, 20, -20, 20]    # left, right, bottom, top
+
+
+# Simulation ###########################################################################################################
+[run_parameters]
+numberOfIterations =
+extrapolation = 1
+nbThreads =
+
+albedoThreshold =
+lightPropagationThreshold =
+nbSubcenterIllumination =
+
+isAPEX = 0                  # flag to use the APEX band definition or a user defined band
+onlyUse1GroundOP = true     # flag to set, if only one ground optical property should be used in order to have one homogenous
+                            # ground spectrum. This flag actually accomplishes, that we do not add voxels on top of the terrain.
+                            # Instead we add a GOP to the terrain (unfortunately you can only assign one GOP per terrain).
+
+## LOPs
+isLOPEXlops = true
+isLOPEX_multipleLOPS = false    # IMPORTANT: set this flag to false if you want to simulate with measured LOPS!!!
+
+## Phase
+[phase]
+deltaLambda = 0.01
+meanLambda = 0.68
+bandNumber = 1
+bandNumbers = 0
+isMultipleBandsInSimulation = false # true if arrays were defined for meanLambda, deltaLambda and bandNumber
+
+
+[products]
+order1Products = 0
+brfProducts = 1
+brfProduct = 1
+horizontalOversampling =
+image = 1
+luminanceProducts =
+maximalThetaImages = 0.1
+nb_scene =
+projection =
+
+[sensor]
+sensorOversampling =
+sensorPlaneprojection =
+allIterationsProducts = 1
+
+## Directions
+[directions]
+sunViewingAzimuthAngle =
+sunViewingZenithAngle =
+numberOfPropagationDirections =
+
+oversampleDownwardRegion =
+numberOfDownwardDirections =
+omegaDown =
+
+oversampleUpwardRegion =
+numberOfUpwardDirections =
+omegaUp =
+
+## Maket
+[maket]
+voxelDim = [0.25, 0.25, 0.25] # dx, dy, dz
+
+# atmosphere
+[atmosphere]
+
+correctionBandModel = 1
+dataBaseName = "dart_atmosphere.db"
+precipitableWaterAmount = 1
+temperatureModelName = "MIDLATSUM"
+
+writeTransferFunctions = 0                   # write transfer function (reusable by dart)
+BRF_TOA = 0
+Radiance_BOA_apres_couplage = 0
+Radiance_BOA_avantCouplage = 0
+ordreUnAtmos = 0
+
+    [atmosphere.gas]
+    group = 1
+    modelName = "MIDLATSUM"                 # gas optical properties
+    cumulativeModelName = "MIDLATSUM"
+
+    [atmosphere.aerosol]
+     cumulativeModelName = "RURALV23"       # aerosol vertical profile
+     optDepthfactor = 1                     # aerosol optical depth factor
+     group = 1                              # same model for all parameters
+     modelName = "RURALV23"                 # aerosol optical properties
+     hgParametersModelName = "RURALV23"     # aerosol Henyey Greenstein Parameters
+
+## object3d
+[object3d]
+importObject3d = true
+path2obj = "3D_Objects/Bubikon_StemObject_ModeledInMeshlab_swapYZ_0atMinCorner.obj"
+location = [0, 0]                           # x, y
+objPosFile = "~/dart_565_run/Bubikon_Datasets/StemLocation_XY_recentered.txt"
+dim = [0, 0, 0]                             # x, y, z, Caution: Hardcoded!
+                                            # TODO: Find a way to extract dimensions from the object directly.
+
+    [object3d.op]
+    type = 0
+    indexFctPhase = 2
+    modelName = 'bark_decidous'
+
+    [object3d.tp]
+    idTemperature = 'thermal_function_290_310'
+    indexTemp = 0
+
+
+# Postprocessing #######################################################################################################
+
+[postprocessing]
+
+########################################################################################################################
