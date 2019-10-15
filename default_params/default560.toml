@@ -2,13 +2,13 @@
 
 # Global settings ######################################################################################################
 
-dart_path =                                  # put here your DART executable (version 5.6.0 executable)
+dart_path =   'dart'                               # put here your DART executable (version 5.6.0 executable)
 dart_version = '5.6.0'                       # make sure you really know what we are talking about
 
 simulation_name = "default560_simulation"
-simulation_location =
+simulation_location = 'location'
 
-output_location =
+output_location ='output'
 
 
 # Preprocessing ########################################################################################################
@@ -25,9 +25,9 @@ output_location =
     extrapolation = 1
     nbThreads = 4
 
-    albedoThreshold =
-    lightPropagationThreshold =
-    nbSubcenterIllumination =
+    albedoThreshold = 1e-5
+    lightPropagationThreshold = 1e-5
+    nbSubcenterIllumination = 10
 
     isAPEX = 0                  # flag to use the APEX band definition or a user defined band
     onlyUse1GroundOP = true     # flag to set, if only one ground optical property should be used in order to have one homogenous
@@ -48,38 +48,38 @@ output_location =
     isMultipleBandsInSimulation = false # true if arrays were defined for meanLambda, deltaLambda and bandNumber
 
 
-## Product specifications
-[products]
-    order1Products = 0
-    brfProducts = 1
-    brfProduct = 1
-    horizontalOversampling =
-    image = 1
-    luminanceProducts =
-    maximalThetaImages = 0.1
-    nb_scene =
-    projection =
+    ## Product specifications
+    [phase.products]
+        order1Products = 0
+        brfProducts = 1
+        brfProduct = 1
+        horizontalOversampling = 1
+        image = 1
+        luminanceProducts = 1
+        maximalThetaImages = 0.1
+        nb_scene = 1
+        projection = 1
 
 
-[sensor]
-    sensorOversampling =
-    sensorPlaneprojection =
-    allIterationsProducts = 1
+    [phase.sensor]
+        sensorOversampling = 1
+        sensorPlaneprojection = 1
+        allIterationsProducts = 1
 
 
 ## Directions
 [directions]
-    sunViewingAzimuthAngle =
-    sunViewingZenithAngle =
-    numberOfPropagationDirections =
+    sunViewingAzimuthAngle = 90
+    sunViewingZenithAngle = 45
+    numberOfPropagationDirections = 10
 
-    oversampleDownwardRegion =
-    numberOfDownwardDirections =
-    omegaDown =
+    oversampleDownwardRegion = 1
+    numberOfDownwardDirections = 10
+    omegaDown = 0.1
 
-    oversampleUpwardRegion =
-    numberOfUpwardDirections =
-    omegaUp =
+    oversampleUpwardRegion = 1
+    numberOfUpwardDirections = 10
+    omegaUp = 0.1
 
 
 ## Maket
@@ -90,39 +90,39 @@ output_location =
 [atmosphere]
     [atmosphere.general]
         isRadiativeTransfertInBottomAtmosphereDefined = 0
-        typeOfAtmosphere =
+        #typeOfAtmosphere =
 
-        atmosphereIterations =
+        #atmosphereIterations =
         dataBaseName = "dart_atmosphere.db"
         correctionBandModel = 1
 
         writeTransferFunctions = 0                   # write transfer function (reusable by dart)
-        inputOutputTransfertFunctions =
+        #inputOutputTransfertFunctions =
 
         atmosphereBRF_TOA = 0
         atmosphereRadiance_BOA_apres_couplage = 0
         atmosphereRadiance_BOA_avantCouplage = 0
         ordreUnAtmos = 0
 
-        downwardingFluxes =
-        upwardingFluxes =
-        extrapol_atmos =
-        seuilEclairementAtmos =
-        seuilFTAtmos =
+#        downwardingFluxes =
+#        upwardingFluxes =
+#        extrapol_atmos =
+#        seuilEclairementAtmos =
+#        seuilFTAtmos =
 
     [atmosphere.geometry]
-        discretisationAtmos =
-        heightOfSensor =
-        minimumNumberOfDivisions =
+#        discretisationAtmos =
+#        heightOfSensor =
+#        minimumNumberOfDivisions =
 
     [atmosphere.dimensons]
-        xAI =
-        yAI =
-        zAI =
-        hCFAI = # height
-        hCFHA =
-        zHA =
-        BA_altitude =
+#        xAI =
+#        yAI =
+#        zAI =
+#        hCFAI = # height
+#        hCFHA =
+#        zHA =
+#        BA_altitude =
 
     [atmosphere.optical_property]
         hgParametersModelName = "RURALV23"     # aerosol Henyey Greenstein Parameters
@@ -130,7 +130,7 @@ output_location =
 
         [atmosphere.optical_property.water]
             precipitableWaterAmountCheckbox = 1
-            precipitableWaterAmount =
+#            precipitableWaterAmount =
 
         [atmosphere.optical_property.gas]
             group = 1
@@ -142,8 +142,8 @@ output_location =
              optDepthfactor = 1                     # aerosol optical depth factor
              group = 1                              # same model for all parameters
              modelName = "RURALV23"                 # aerosol optical properties
-             gasCumulativeModelName =
-             parametersModelName =
+#             gasCumulativeModelName =
+#             parametersModelName =
 
 ## object3d
 [object3d]
