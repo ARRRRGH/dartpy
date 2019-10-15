@@ -3,7 +3,7 @@ import utils.general
 
 import toml
 import geopandas as gpd
-from shapely import box
+from shapely.geometry import box
 from fiona.crs import from_epsg
 import logging
 from shutil import copyfile
@@ -78,7 +78,7 @@ class Simulation(object):
                 'Simulation directory already exists! You cannot create a new simulation in the same directory. ' +
                 'Use from_simulation to reload a simulation.')
         else:
-            os.mkdir(self.path)
+            os.makedirs(self.path)
             self.user_config_path = os.path.join(self.path, USER_CONFIG_FILE_NAME)
             copyfile(config_path, self.user_config_path)
 
