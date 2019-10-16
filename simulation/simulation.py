@@ -50,7 +50,7 @@ class Simulation(object):
         """
         # TODO: add an option to reuse certain XML files
         # TODO: add an option to override simulation name and simulation location of loaded config file
-        config_path = os.path.join(simulation_dir_path, CONFIG_FILE_NAME)
+        config_path = os.path.normpath(os.path.join(simulation_dir_path, CONFIG_FILE_NAME))
         if os.path.exists(config_path):
             self.__init__(config_path, *args, **kwargs)
 
@@ -70,17 +70,17 @@ class Simulation(object):
         # TODO: check for version consistency
 
         # Path
-        time = strftime("%Y-%m-%d-%H:%M:%S", gmtime())
+        time = strftime("%Y-%m-%d-%H_%M_%S", gmtime())
         self.simulation_name = user_config['simulation_name'] + '_' + time
         self.simulation_location = user_config['simulation_location']
-        self.path = os.path.join(self.simulation_location, self.simulation_name)
+        self.path = os.path.normpath(os.path.join(self.simulation_location, self.simulation_name))
         if os.path.exists(self.path):
             logging.exception(
                 'Simulation directory already exists! You cannot create a new simulation in the same directory. ' +
                 'Use from_simulation to reload a simulation.')
         else:
             os.makedirs(self.path)
-            self.user_config_path = os.path.join(self.path, USER_CONFIG_FILE_NAME)
+            self.user_config_path = os.path.normpath(os.path.join(self.path, USER_CONFIG_FILE_NAME))
             copyfile(config_path, self.user_config_path)
 
         return user_config
@@ -97,7 +97,7 @@ class Simulation(object):
 
             default_config = toml.load(self.default_config)
             config = utils.general.merge_dicts(default_config, user_config)
-            with open(os.path.join(self.path, CONFIG_FILE_NAME), 'w+') as f:
+            with open(os.path.normpath(os.path.join(self.path, CONFIG_FILE_NAME)), 'w+') as f:
                 f.write(toml.dumps(config))
 
             return config

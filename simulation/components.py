@@ -50,8 +50,8 @@ class Component(object):
 
     def to_file(self):
         tree = ET.ElementTree(self.xml_root)
-        inp_path = os.path.join(self.simulation_dir, 'input')
-        xml_path = os.path.join(inp_path, self.COMPONENT_FILE_NAME)
+        inp_path = os.path.normpath(os.path.join(self.simulation_dir, 'input'))
+        xml_path = os.path.normpath(os.path.join(inp_path, self.COMPONENT_FILE_NAME))
 
         if not os.path.exists(inp_path):
             print('path', inp_path)
