@@ -26,9 +26,10 @@ class Component(object):
         """
         self.simulation_dir = simulation_dir
         self.version = version
+        self.params = params
+
         self.xml_root = et.Element(ROOT_TAG)
         self.xml_root.set('version', self.version)
-        self._write(params)
 
     def from_file(self, path, version, force=False):
         """
@@ -51,11 +52,13 @@ class Component(object):
 
     def to_file(self):
         tree = et.ElementTree(self.xml_root)
+        self._write(self.params)
+
         inp_path = os.path.normpath(os.path.join(self.simulation_dir, 'input'))
         xml_path = os.path.normpath(os.path.join(inp_path, self.COMPONENT_FILE_NAME))
 
         if not os.path.exists(inp_path):
-            os.makedirs(inp_path)
+            os.mkdir(inp_path)
         tree.write(xml_path, pretty_print=True)
 
     def _read(self, path):
@@ -63,7 +66,22 @@ class Component(object):
         self.xml_root = tree.getroot()
 
     def _write(self, parameters):
-        raise NotImplemented
+        raise NotImplementedError
+
+    def _set_if_possible(self, element, key, val, check=None):
+        if check is not None:
+            assert check(key, val)
+
+        if val is not None:
+            element.set(key, val)
+
+    def _str_none(self, val):
+        if val is not None:
+            return str(val)
+        return None
+
+    def _check_params(self, params):
+        raise NotImplementedError
 
 
 class Atmosphere(Component):
@@ -80,21 +98,8 @@ class Atmosphere(Component):
     def _write(self, params):
         assert self._check_params(params)
 
-        # this is to ensure undefined elements are projected to None and do not raise an Error a priori
         if parse_version(self.version) >= parse_version('5.6.0'):
             self._write560(params)
-
-    def _set_if_possible(self, element, key, val, check=None):
-        if check is not None:
-            assert check(key, val)
-            
-        if val is not None:
-            element.set(key, val)
-
-    def _str_none(self, val):
-        if val is not None:
-            return str(val)
-        return None
 
     def _write560(self, params):
         atmos = et.SubElement(self.xml_root, self.COMPONENT_NAME)

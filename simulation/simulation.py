@@ -36,10 +36,16 @@ class Simulation(object):
         """
         self.default_config = default_config
         user_config = self._read_config(config_file_path, *args, **kwargs)
-        self.config = self._merge_config(user_config, patch)
-        self._split_config()
 
-    def from_simulation(self, simulation_dir_path, use_xml=None, use_db=None, *args, **kwargs):
+        if patch:
+            self.config = self._patch_config(user_config, patch)
+        else:
+            self.config = user_config
+
+        self._split_config()
+        self._create_components()
+
+    def from_simulation(self, simulation_dir_path, config_file_path=None, use_xml=None, use_db=None, *args, **kwargs):
         """
         Create a duplicate simulation.
 
@@ -50,6 +56,8 @@ class Simulation(object):
         """
         # TODO: add an option to reuse certain XML files
         # TODO: add an option to override simulation name and simulation location of loaded config file
+        # TODO: add patching for mixed toml and xml when suppliying a config_file (this can be done by simple xml to dict
+        # conversion and then patching
         config_path = os.path.normpath(os.path.join(simulation_dir_path, CONFIG_FILE_NAME))
         if os.path.exists(config_path):
             self.__init__(config_path, *args, **kwargs)
@@ -85,8 +93,7 @@ class Simulation(object):
 
         return user_config
 
-    def _merge_config(self, user_config, patch=True):
-        if patch:
+    def _patch_config(self, user_config, patch=True):
             if self.default_config is None:
                 # get most recent version still before this version
                 path_ver = [(path, parse_version(version))
@@ -101,8 +108,6 @@ class Simulation(object):
                 f.write(toml.dumps(config))
 
             return config
-        else:
-            return user_config
 
     def _split_config(self):
         self.run_params = self.config.get('run_parameters')
@@ -122,10 +127,13 @@ class Simulation(object):
         except KeyError:
             self.ROI = None
 
+    def _create_components(self):
+        self.components = {}
+        self.components['atmosphere'] = cmp.Atmosphere(self.path, self.atmosphere_params, self.version)
+
     def write(self):
-        # Write atmosphere XML
-        atm = cmp.Atmosphere(self.path, self.atmosphere_params, self.version)
-        atm.to_file()
+        for component in self.components.values():
+            component.to_file()
 
     def run(self):
         raise NotImplemented
