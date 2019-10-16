@@ -1,4 +1,4 @@
-import xml.etree.ElementTree as ET
+from lxml import etree as et
 import os
 import logging
 from pkg_resources import parse_version
@@ -26,7 +26,8 @@ class Component(object):
         """
         self.simulation_dir = simulation_dir
         self.version = version
-        self.xml_root = ET.Element(ROOT_TAG)
+        self.xml_root = et.Element(ROOT_TAG)
+        self.xml_root.set('version', self.version)
         self._write(params)
 
     def from_file(self, path, version, force=False):
@@ -49,17 +50,16 @@ class Component(object):
                 'use force=True')
 
     def to_file(self):
-        tree = ET.ElementTree(self.xml_root)
+        tree = et.ElementTree(self.xml_root)
         inp_path = os.path.normpath(os.path.join(self.simulation_dir, 'input'))
         xml_path = os.path.normpath(os.path.join(inp_path, self.COMPONENT_FILE_NAME))
 
         if not os.path.exists(inp_path):
-            print('path', inp_path)
             os.makedirs(inp_path)
-        tree.write(xml_path)
+        tree.write(xml_path, pretty_print=True)
 
     def _read(self, path):
-        tree = ET.parse(path)
+        tree = et.parse(path)
         self.xml_root = tree.getroot()
 
     def _write(self, parameters):
@@ -97,80 +97,96 @@ class Atmosphere(Component):
         return None
 
     def _write560(self, params):
-        print(params)
-        atmos = ET.SubElement(self.xml_root, self.COMPONENT_NAME)
+        atmos = et.SubElement(self.xml_root, self.COMPONENT_NAME)
         self._set_if_possible(atmos, 'isRadiativeTransfertInBottomAtmosphereDefined',
                               self._str_none(params['general'].get('isRadiativeTransfertInBottomAtmosphereDefined')))
 
-        is_atmosphere = ET.SubElement(atmos, 'IsAtmosphere')
+        is_atmosphere = et.SubElement(atmos, 'IsAtmosphere')
         self._set_if_possible(is_atmosphere, 'typeOfAtmosphere', self._str_none(params['general'].get('typeOfAtmosphere')))
 
-        atmosphere_iterations = ET.SubElement(is_atmosphere, 'AtmosphereIterations')
+        atmosphere_iterations = et.SubElement(is_atmosphere, 'AtmosphereIterations')
 
-        atmosphere_transfer_functions = ET.SubElement(atmosphere_iterations, 'AtmosphereTransfertFunctions')
+        atmosphere_transfer_functions = et.SubElement(atmosphere_iterations, 'AtmosphereTransfertFunctions')
         self._set_if_possible(atmosphere_transfer_functions, 'inputOutputTransfertFunctions', self._str_none(params['general'].get('inputOutputTransfertFunctions')))
 
-        computed_transfer_functions = ET.SubElement(atmosphere_transfer_functions, 'ComputedTransferFunctions')
+        computed_transfer_functions = et.SubElement(atmosphere_transfer_functions, 'ComputedTransferFunctions')
         self._set_if_possible(computed_transfer_functions, 'writeTransferFunctions', self._str_none(params['general'].get('writeTransferFunctions')))
 
-        atmosphere_products = ET.SubElement(atmosphere_iterations, 'AtmosphereProducts')
-        self._set_if_possible(atmosphere_products, 'atmosphereBRF_TOA', self._str_none(params['general'].get('atmosphereBRF_TOA')))
-        self._set_if_possible(atmosphere_products, 'atmosphereRadiance_BOA_apresCouplage', self._str_none(params['general'].get('atmosphereRadiance_BOA_apresCouplage')))
-        self._set_if_possible(atmosphere_products, 'atmosphereRadiance_BOA_avantCouplage', self._str_none(params['general'].get('atmosphereRadiance_BOA_avantCouplage')))
-        self._set_if_possible(atmosphere_products, 'ordreUnAtmos', self._str_none(params['general'].get('ordreUnAtmos')))
+        atmosphere_products = et.SubElement(atmosphere_iterations, 'AtmosphereProducts')
+        self._set_if_possible(atmosphere_products, 'atmosphereBRF_TOA', self._str_none(params['products'].get('atmosphereBRF_TOA')))
+        self._set_if_possible(atmosphere_products, 'atmosphereRadiance_BOA_apresCouplage', self._str_none(params['products'].get('atmosphereRadiance_BOA_after_coupling')))
+        self._set_if_possible(atmosphere_products, 'atmosphereRadiance_BOA_avantCouplage', self._str_none(params['products'].get('atmosphereRadiance_BOA_before_coupling')))
+        self._set_if_possible(atmosphere_products, 'ordreUnAtmos', self._str_none(params['products'].get('order_1')))
 
-        atmosphere_components = ET.SubElement(atmosphere_iterations, 'AtmosphereComponents')
-        self._set_if_possible(atmosphere_components, 'downwardingFluxes', self._str_none(params['general'].get('downwardingFluxes')))
-        self._set_if_possible(atmosphere_components, 'upwardingFluxes', self._str_none(params['general'].get('upwardingFluxes')))
+        atmosphere_components = et.SubElement(atmosphere_iterations, 'AtmosphereComponents')
+        self._set_if_possible(atmosphere_components, 'downwardingFluxes', self._str_none(params['components'].get('downwardingFluxes')))
+        self._set_if_possible(atmosphere_components, 'upwardingFluxes', self._str_none(params['components'].get('upwardingFluxes')))
 
-        atmosphere_expert_mode_zone = ET.SubElement(atmosphere_iterations, 'AtmosphereExpertModeZone')
-        self._set_if_possible(atmosphere_expert_mode_zone, 'extrapol_atmos', self._str_none(params['general'].get('extrapol_atmos')))
-        self._set_if_possible(atmosphere_expert_mode_zone, 'seuilEclairementAtmos', self._str_none(params['general'].get('seuilEclairementAtmos')))
-        self._set_if_possible(atmosphere_expert_mode_zone, 'seuilFTAtmos', self._str_none(params['general'].get('seuilFTAtmos')))
+        atmosphere_expert_mode_zone = et.SubElement(atmosphere_iterations, 'AtmosphereExpertModeZone')
+        self._set_if_possible(atmosphere_expert_mode_zone, 'extrapol_atmos', self._str_none(params['expert'].get('extrapol_atmos')))
+        self._set_if_possible(atmosphere_expert_mode_zone, 'seuilEclairementAtmos', self._str_none(params['expert'].get('seuilEclairementAtmos')))
+        self._set_if_possible(atmosphere_expert_mode_zone, 'seuilFTAtmos', self._str_none(params['expert'].get('seuilFTAtmos')))
 
-        atmosphere_geometry = ET.SubElement(is_atmosphere, 'AtmosphereGeometry')
+        atmosphere_geometry = et.SubElement(is_atmosphere, 'AtmosphereGeometry')
         self._set_if_possible(atmosphere_geometry, 'discretisationAtmos', self._str_none(params['geometry'].get('discretisationAtmos')))
         self._set_if_possible(atmosphere_geometry, 'heightOfSensor', self._str_none(params['geometry'].get('heightOfSensor')))
         self._set_if_possible(atmosphere_geometry, 'minimumNumberOfDivisions', self._str_none(params['geometry'].get('minimumNumberOfDivisions')))
 
-        mid_atmosphere = ET.SubElement(atmosphere_geometry, 'MidAtmosphere')
+        mid_atmosphere = et.SubElement(atmosphere_geometry, 'MidAtmosphere')
 
-        cell_dimensions = ET.SubElement(mid_atmosphere, 'CellDimensions')
+        cell_dimensions = et.SubElement(mid_atmosphere, 'CellDimensions')
         self._set_if_possible(cell_dimensions, 'xAI', self._str_none(params['dimensions'].get('xAI')))
         self._set_if_possible(cell_dimensions, 'yAI', self._str_none(params['dimensions'].get('yAI')))
         self._set_if_possible(cell_dimensions, 'zAI', self._str_none(params['dimensions'].get('zAI')))
 
-        height = ET.SubElement(mid_atmosphere, 'Height')
+        height = et.SubElement(mid_atmosphere, 'Height')
         self._set_if_possible(height, 'hCFAI', self._str_none(params['dimensions'].get('hCFAI')))
 
-        upper_atmosphere = ET.SubElement(atmosphere_geometry, 'UpperAtmosphere')
+        upper_atmosphere = et.SubElement(atmosphere_geometry, 'UpperAtmosphere')
         self._set_if_possible(upper_atmosphere, 'hCFHA', self._str_none(params['dimensions'].get('hCFHA')))
 
-        layer = ET.SubElement(upper_atmosphere, 'Layer')
+        layer = et.SubElement(upper_atmosphere, 'Layer')
         self._set_if_possible(layer, 'zHA', self._str_none(params['dimensions'].get('zHA')))
 
-        atmospheric_optical_property_model = ET.SubElement(is_atmosphere, 'AtmosphericOpticalPropertyModel')
-        self._set_if_possible(atmospheric_optical_property_model, 'aerosolCumulativeModelName', params['optical_property']['aerosol'].get('cumulativeModelName'))
-        self._set_if_possible(atmospheric_optical_property_model, 'aerosolOptDepthFactor', self._str_none(params['optical_property']['aerosol'].get('optDepthFactor')))
-        self._set_if_possible(atmospheric_optical_property_model, 'aerosolsGroup', self._str_none(params['optical_property']['aerosol'].get('group')))
-        self._set_if_possible(atmospheric_optical_property_model, 'aerosolsModelName', self._str_none(params['optical_property']['aerosol'].get('modelName')))
+        atmospheric_optical_property_model = et.SubElement(is_atmosphere, 'AtmosphericOpticalPropertyModel')
+        self._set_if_possible(atmospheric_optical_property_model, 'correctionBandModel', self._str_none(params['optical_property_db'].get('correctionBandModel')))
+        self._set_if_possible(atmospheric_optical_property_model, 'databaseName', self._str_none(params['optical_property_db'].get('dataBaseName')))
+        self._set_if_possible(atmospheric_optical_property_model, 'hgParametersModelName', self._str_none(params['optical_property_db'].get('hgParametersModelName')))
+        self._set_if_possible(atmospheric_optical_property_model, 'temperatureModelName', self._str_none(params['optical_property_db'].get('temperatureModelName')))
 
-        self._set_if_possible(atmospheric_optical_property_model, 'correctionBandModel', self._str_none(params['general'].get('correctionBandModel')))
-        self._set_if_possible(atmospheric_optical_property_model, 'databaseName', self._str_none(params['general'].get('databaseName')))
-        self._set_if_possible(atmospheric_optical_property_model, 'hgParametersModelName', params['optical_property'].get('hgParametersModelName'))
-        self._set_if_possible(atmospheric_optical_property_model, 'temperatureModelName', params['optical_property'].get('temperatureModelName'))
+        self._set_if_possible(atmospheric_optical_property_model, 'aerosolCumulativeModelName', self._str_none(params['optical_property_db']['aerosol'].get('cumulativeModelName')))
+        self._set_if_possible(atmospheric_optical_property_model, 'aerosolOptDepthFactor', self._str_none(params['optical_property_db']['aerosol'].get('optDepthFactor')))
+        self._set_if_possible(atmospheric_optical_property_model, 'aerosolsGroup', self._str_none(params['optical_property_db']['aerosol'].get('group')))
+        self._set_if_possible(atmospheric_optical_property_model, 'aerosolsModelName', self._str_none(params['optical_property_db']['aerosol'].get('modelName')))
 
-        self._set_if_possible(atmospheric_optical_property_model, 'gasCumulativeModelName', self._str_none(params['optical_property']['gas'].get('cumulativeModelName')))
-        self._set_if_possible(atmospheric_optical_property_model, 'gasGroup', self._str_none(params['optical_property'].get('gasGroup')))
-        self._set_if_possible(atmospheric_optical_property_model, 'gasModelName', self._str_none(params['optical_property']['gas'].get('modelName')))
-        self._set_if_possible(atmospheric_optical_property_model, 'gasParametersModelName', params['optical_property']['gas'].get('parametersModelName'))
+        self._set_if_possible(atmospheric_optical_property_model, 'gasCumulativeModelName', self._str_none(params['optical_property_db']['gas'].get('cumulativeModelName')))
+        self._set_if_possible(atmospheric_optical_property_model, 'gasGroup', self._str_none(params['optical_property_db']['gas'].get('group')))
+        self._set_if_possible(atmospheric_optical_property_model, 'gasModelName', self._str_none(params['optical_property_db']['gas'].get('modelName')))
+        self._set_if_possible(atmospheric_optical_property_model, 'gasParametersModelName', self._str_none(params['optical_property_db']['gas'].get('gasParametersModelName')))
 
-        self._set_if_possible(atmospheric_optical_property_model, 'precipitableWaterAmountCkeckbox', self._str_none(params['optical_property'].get('water').get('precipitableWaterAmountCkeckbox')))
+        self._set_if_possible(atmospheric_optical_property_model, 'precipitableWaterAmountCkeckbox', self._str_none(params['optical_property_db'].get('water').get('include')))
+        water_amount = et.SubElement(atmospheric_optical_property_model, 'WaterAmount')
+        self._set_if_possible(water_amount, 'precipitableWaterAmount', self._str_none(params['optical_property_db'].get('water').get('precipitableWaterAmount')))
 
-        water_amount = ET.SubElement(atmospheric_optical_property_model, 'WaterAmount')
-        self._set_if_possible(water_amount, 'precipitableWaterAmount', self._str_none(params['optical_property'].get('water').get('precipitableWaterAmount')))
+        atmospheric_optical_property = et.SubElement(is_atmosphere, 'AtmosphericOpticalProperty')
+        self._set_if_possible(atmospheric_optical_property, 'courbureTerre', self._str_none(params['optical_property'].get('correct_earth_curvature')))
+        self._set_if_possible(atmospheric_optical_property, 'pointMilieu', self._str_none(params['optical_property'].get('correct_mid_point')))
+        self._set_if_possible(atmospheric_optical_property, 'a_HG', self._str_none(params['optical_property'].get('heyney_greenstein_a')))
+        self._set_if_possible(atmospheric_optical_property, 'g1', self._str_none(params['optical_property'].get('heyney_greenstein_g1')))
+        self._set_if_possible(atmospheric_optical_property, 'g2', self._str_none(params['optical_property'].get('heyney_greenstein_g2')))
+    
+        self._set_if_possible(atmospheric_optical_property, 'aerosolOpticalDepth', self._str_none(params['optical_property']['aerosol'].get('optical_depth')))
+        self._set_if_possible(atmospheric_optical_property, 'aerosolScaleFactor', self._str_none(params['optical_property']['aerosol'].get('scale_factor')))
+        self._set_if_possible(atmospheric_optical_property, 'aerosolAlbedo', self._str_none(params['optical_property']['aerosol'].get('albedo')))
 
-        is_radiative_transfert_in_bottom_atmosphere = ET.SubElement(is_atmosphere, 'isRadiativeTransfertInBottomAtmosphere')
+        self._set_if_possible(atmospheric_optical_property, 'gasOpticalDepth', self._str_none(params['optical_property']['gas'].get('optical_depth')))
+        self._set_if_possible(atmospheric_optical_property, 'gasScaleFactor', self._str_none(params['optical_property']['gas'].get('scale_factor')))
+        self._set_if_possible(atmospheric_optical_property, 'transmittanceOfGases', self._str_none(params['optical_property']['gas'].get('transmittance')))
+
+        temperature_model = et.SubElement(is_atmosphere, 'TemperatureFile')
+        self._set_if_possible(temperature_model, 'atmosphereTemperatureFileName', self._str_none(params['optical_property'].get('temperature_file_name')))
+
+        is_radiative_transfert_in_bottom_atmosphere = et.SubElement(is_atmosphere, 'isRadiativeTransfertInBottomAtmosphere')
         self._set_if_possible(is_radiative_transfert_in_bottom_atmosphere, 'BA_altitude', self._str_none(params['dimensions'].get('BA_altitude')))
 
 
