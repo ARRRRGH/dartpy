@@ -1,7 +1,8 @@
 import simulation.simulation as simul
 
 def base_test():
-    sim = simul.Simulation('/Users/jim/Studium/REMOTE_SENSING/DART/dartpy/config_templates/base560.toml')
+    sim = simul.Simulation('D:/dartpy/config_templates/base560.toml')
+    print(sim.default_config)
     sim.write()
 
 

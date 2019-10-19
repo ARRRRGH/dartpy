@@ -15,7 +15,8 @@ from time import gmtime, strftime
 
 CONFIG_FILE_NAME = 'config.toml'
 USER_CONFIG_FILE_NAME = 'user_config.toml'
-DEFAULT_CONFIG_FILE_PER_VERSION = {'5.6.0': '../default_params/default560.toml'}
+DEFAULT_CONFIG_FILE_PER_VERSION = {'5.6.0': '../default_params/default560.toml',
+                                   '5.7.5': '../default_params/default575.toml'}
 
 
 class Simulation(object):
