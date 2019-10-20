@@ -20,26 +20,6 @@ output_location ='output'
 
 
 # Simulation ###########################################################################################################
-[run_parameters]
-    numberOfIterations = 5
-    extrapolation = 1
-    nbThreads = 4
-
-    albedoThreshold = 1e-5
-    lightPropagationThreshold = 1e-5
-    nbSubcenterIllumination = 10
-
-    isAPEX = 0                  # flag to use the APEX band definition or a user defined band
-    onlyUse1GroundOP = true     # flag to set, if only one ground optical property should be used in order to have one homogenous
-                                # ground spectrum. This flag actually accomplishes, that we do not add voxels on top of the terrain.
-                                # Instead we add a GOP to the terrain (unfortunately you can only assign one GOP per terrain).
-
-    ## LOPs
-    isLOPEXlops = true
-    isLOPEX_multipleLOPS = false    # IMPORTANT: set this flag to false if you want to simulate with measured LOPS!!!
-
-
-## Phase
 [phase]
     calculatorMethod = 0                 # 0 = Flux-tracking, 1 = Monte-Carlo, 2 = LIDAR
     
@@ -253,7 +233,7 @@ output_location ='output'
         typeOfAtmosphere = 0
         #atmosphereIterations =
 
-        writeTransferFunctions = 0                   # write transfer function (reusable by dart)
+        writeTransferFunctions = 0                   # to_file transfer function (reusable by dart)
         inputOutputTransfertFunctions = 0
 
     [atmosphere.products]
