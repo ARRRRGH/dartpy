@@ -27,14 +27,22 @@ class Component(object):
         """
         self.simulation_dir = simulation_dir
         self.version = version
-        self.params = params
 
-        self.xml_root = et.Element(ROOT_TAG)
-        self.xml_root.set('version', self.version)
-        self._write(self.params)
-        self._xml_only = False
+        if type(params) is dict:
+            self.params = params
+            self.xml_root = et.Element(ROOT_TAG)
+            self.xml_root.set('version', self.version)
+            self._write(self.params)
+            self._xml_only = False
+        else:
+            self.params = None
+            self.xml_root, self.original_path = params
+            self._xml_only = True
 
-    def from_file(self, simulation_dir, path, version, force=False):
+        self._is_to_file = False
+
+    @classmethod
+    def from_file(cls, simulation_dir, path, version, force=False):
         """
         Create a component from its xml file
         :param simulation_dir:
@@ -43,43 +51,39 @@ class Component(object):
         :param force:
         :return:
         """
-        self._read(path)
+        xml_root = cls._read(path)
 
         # Check if this is a dart file, if its version is correct (if supplied) and whether it is the correct component
-        valid = self.xml_root.tag == ROOT_TAG and \
-                self.xml_root.get('version') == version and \
-                self.COMPONENT_NAME in [el.tag for el in list(self.xml_root)]
+        valid = xml_root.tag == ROOT_TAG and \
+                xml_root.get('version') == version and \
+                cls.COMPONENT_NAME in [el.tag for el in list(xml_root)]
         if not (valid or force):
             logging.exception(
                 'Cannot load ' + path + 'since file does not seem to be valid. If you are convinced it is, ' +
                 'use force=True')
         else:
-            self.simulation_dir = simulation_dir
-            self.version = self.xml_root.get('version')
-            self._xml_only = True
-
-            inp_path = os.path.normpath(os.path.join(self.simulation_dir, 'input'))
-            xml_path = os.path.normpath(os.path.join(inp_path, self.COMPONENT_FILE_NAME))
-
-            copyfile(path, xml_path)
-
-        return self
+            return cls(simulation_dir, (xml_root, path), version)
 
     def to_file(self):
+        inp_path = os.path.normpath(os.path.join(self.simulation_dir, 'input'))
+        xml_path = os.path.normpath(os.path.join(inp_path, self.COMPONENT_FILE_NAME))
+
         if not self._xml_only:
             tree = et.ElementTree(self.xml_root)
             self._write(self.params)
 
-            inp_path = os.path.normpath(os.path.join(self.simulation_dir, 'input'))
-            xml_path = os.path.normpath(os.path.join(inp_path, self.COMPONENT_FILE_NAME))
-
             if not os.path.exists(inp_path):
                 os.mkdir(inp_path)
             tree.to_file(xml_path, pretty_print=True)
+        else:
+            copyfile(self.original_path, xml_path)
 
-    def _read(self, path):
+        self._is_to_file = True
+
+    @classmethod
+    def _read(cls, path):
         tree = et.parse(path)
-        self.xml_root = tree.getroot()
+        return tree.getroot()
 
     def _write(self, params):
         assert self._check_params(params)

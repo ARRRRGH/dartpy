@@ -1,9 +1,9 @@
-# Basic simulation for DART version 5.6.0
+# Basic simulation for DART version 5.7.5
 
 # Global settings ######################################################################################################
 
 dart_path = "C:/DART_560_v739/dart.bat"      # put here your DART executable (version 5.6.0 executable)
-dart_version = '5.6.0'                       # make sure you really know what we are talking about
+dart_version = '5.7.5'                       # make sure you really know what we are talking about
 
 simulation_name = "basic560_template_simulation"
 simulation_location = 'D:/DART_575_v1140/DART_575/user_data/simulations/test'
