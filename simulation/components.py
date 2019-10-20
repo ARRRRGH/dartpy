@@ -51,18 +51,18 @@ class Component(object):
         :param force:
         :return:
         """
-        xml_root = cls._read(path)
+        xml_path = os.path.normpath(os.path.join(path, 'input', cls.COMPONENT_FILE_NAME))
+        xml_root = cls._read(xml_path)
 
         # Check if this is a dart file, if its version is correct (if supplied) and whether it is the correct component
-        valid = xml_root.tag == ROOT_TAG and \
-                xml_root.get('version') == version and \
+        valid = parse_version(xml_root.get('version')) == parse_version(version) and \
                 cls.COMPONENT_NAME in [el.tag for el in list(xml_root)]
         if not (valid or force):
             logging.exception(
-                'Cannot load ' + path + 'since file does not seem to be valid. If you are convinced it is, ' +
-                'use force=True')
+                'Cannot load ' + path + ' since file does not seem to be valid. If you are convinced it is, ' +
+                'use force=True. Found ROOT_TAG ' + str(xml_root.get('version')) + ', tags: ' + str([el.tag for el in list(xml_root)]))
         else:
-            return cls(simulation_dir, (xml_root, path), version)
+            return cls(simulation_dir, (xml_root, xml_path), version)
 
     def to_file(self):
         inp_path = os.path.normpath(os.path.join(self.simulation_dir, 'input'))
@@ -120,7 +120,7 @@ class Component(object):
 
 class Phase(Component):
     COMPONENT_NAME = 'Phase'
-    COMPONENT_FILE_NAME = 'params.xml'
+    COMPONENT_FILE_NAME = 'phase.xml'
 
     def _check_params(self, params):
         return True
