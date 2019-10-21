@@ -6,7 +6,7 @@ dart_path = "C:/DART_560_v739/dart.bat"      # put here your DART executable (ve
 dart_version = '5.7.5'                       # make sure you really know what we are talking about
 
 simulation_name = "basic560_template_simulation"
-simulation_location = 'D:/DART_575_v1140/DART_575/user_data/simulations/test'
+simulation_location = '/Users/jim/Studium/REMOTE_SENSING/DART/simulation_tests'
 
 output_location = 'C:/DART_560_v739/user_data/simulations/output/out'
 

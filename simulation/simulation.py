@@ -39,6 +39,12 @@ class Simulation(object):
         :param kwargs:
         """
         self.default_config = default_config
+
+        if no_gen == 'all':
+            no_gen = list(COMPONENTS.keys())
+        elif no_gen == 'not_implemented':
+            no_gen = [comp for comp in COMPONENTS.keys() if not COMPONENTS[comp].is_implemented()]
+
         self.non_generated_components = no_gen
 
         self.land_cover = land_cover
@@ -104,11 +110,6 @@ class Simulation(object):
             config = simulation_config_path
 
         if os.path.exists(path):
-            if copy_xml == 'all':
-                copy_xml = list(COMPONENTS.keys())
-            elif copy_xml == 'not_implemented':
-                copy_xml = [comp for comp in COMPONENTS.keys() if not COMPONENTS[comp].is_implemented()]
-
             # generate all components that are not copied
             sim = cls(config, patch=default_patch, no_gen=copy_xml, *args, **kwargs)
 

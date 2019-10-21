@@ -1,7 +1,7 @@
 import simulation.simulation as simul
 
 def base_test():
-    sim = simul.Simulation('D:/dartpy/config_templates/base560.toml')
+    sim = simul.Simulation('/Users/jim/Studium/REMOTE_SENSING/DART/dartpy/config_templates/base575.toml', no_gen='not_implemented')
     print(sim.default_config)
     sim.to_file()
 
@@ -17,4 +17,5 @@ def from_simulation_test():
 
 
 if __name__ == '__main__':
-    from_simulation_test()
+    #from_simulation_test()
+    base_test()
