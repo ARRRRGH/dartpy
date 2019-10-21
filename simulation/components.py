@@ -15,7 +15,7 @@ class Component(object):
     COMPONENT_FILE_NAME = None
     COMPONENT_NAME = None
 
-    def __init__(self, simulation_dir, params, version):
+    def __init__(self, simulation_dir, params, version, *args, **kwargs):
         """
         Create a component from a complete params dict. The default config files in ../default_params implicitly define
         the form of the params dict for each version and each component. Normally, params is patched to a default file
@@ -32,7 +32,7 @@ class Component(object):
             self.params = params
             self.xml_root = et.Element(ROOT_TAG)
             self.xml_root.set('version', self.version)
-            self._write(self.params)
+            self._write(self.params, *args, **kwargs)
             self._xml_only = False
         else:
             self.params = None
@@ -70,11 +70,10 @@ class Component(object):
 
         if not self._xml_only:
             tree = et.ElementTree(self.xml_root)
-            self._write(self.params)
 
             if not os.path.exists(inp_path):
                 os.mkdir(inp_path)
-            tree.to_file(xml_path, pretty_print=True)
+            tree.write(xml_path, pretty_print=True)
         else:
             copyfile(self.original_path, xml_path)
 
@@ -85,14 +84,13 @@ class Component(object):
         tree = et.parse(path)
         return tree.getroot()
 
-    def _write(self, params):
+    def _write(self, params, *args, **kwargs):
         assert self._check_params(params)
-
         # this is to ensure undefined elements are projected to None and do not raise an Error a priori
         if parse_version(self.version) >= parse_version('5.7.5'):
-            self._write575(params)
+            self._write575(params, *args, **kwargs)
         elif parse_version(self.version) >= parse_version('5.6.0'):
-            self._write560(params)
+            self._write560(params, *args, **kwargs)
 
     def _check_and_set(self, element, key, val, check=None):
         if check is not None:
@@ -182,15 +180,16 @@ class Phase(Component):
         # spectral intervals
         spectral_intervals = et.SubElement(dart_input_parameters, 'SpectralIntervals')
 
-        for n in range(len(params['spectral'].get('bandNumber'))):
+        for n in range(len(params['spectral'].get('meanLambda'))):
             spectral_intervals_properties = et.SubElement(spectral_intervals, 'SpectralIntervalsProperties')
-            self._check_and_set(spectral_intervals_properties, 'bandNumber', self._str_none[n])
+            self._check_and_set(spectral_intervals_properties, 'bandNumber',
+                                self._str_none(n))
             self._check_and_set(spectral_intervals_properties, 'deltaLambda',
-                                self._str_none(params.get('deltaLambda')[n]))
+                                self._str_none(params['spectral'].get('deltaLambda')[n]))
             self._check_and_set(spectral_intervals_properties, 'meanLambda',
-                                self._str_none(params.get('meanLambda')[n]))
+                                self._str_none(params['spectral'].get('meanLambda')[n]))
             self._check_and_set(spectral_intervals_properties, 'spectralDartMode',
-                                self._str_none(params.get('spectralDartMode')))
+                                self._str_none(params['spectral'].get('spectralDartMode')))
 
         # atmosphere brightness temperature
         temperature_atmosphere = et.SubElement(dart_input_parameters, 'temperatureAtmosphere')
@@ -224,8 +223,8 @@ class Phase(Component):
                             self._str_none(params['irradiance'].get('commonSkylCheckBox')))
 
         spectral_irradiance_value = et.SubElement(spectral_irradiance, 'SpectralIrradianceValue')
-        self._check_and_set(spectral_irradiance_value, 'Skyl', self._str_none(params.get('Skyl')))
-        self._check_and_set(spectral_irradiance_value, 'bandNumber', '0')
+        self._check_and_set(spectral_irradiance_value, 'Skyl', self._str_none(params['irradiance'].get('Skyl')))
+        self._check_and_set(spectral_irradiance_value, 'bandNumber', self._str_none(params['irradiance'].get('bandNumber')))
         self._check_and_set(spectral_irradiance_value, 'irradiance', self._str_none(params.get('irradiance')))
 
         # *** Dart Products ***
@@ -240,7 +239,7 @@ class Phase(Component):
                             self._str_none(params['products'].get('lidarImageProducts')))
         self._check_and_set(dart_module_products, 'lidarProducts',
                             self._str_none(params['products'].get('lidarProducts')))
-        self._check_and_set(dart_module_products, 'order1Products', self._str_none(params.get('order1Products')))
+        self._check_and_set(dart_module_products, 'order1Products', self._str_none(params['products'].get('order1Products')))
         self._check_and_set(dart_module_products, 'radiativeBudgetProducts',
                             self._str_none(params['products'].get('radiativeBudgetProducts')))
         self._check_and_set(dart_module_products, 'temperaturePerTrianglePerCell',
@@ -366,9 +365,9 @@ class Directions(Component):
 
         hot_spot_properties = et.SubElement(directions, 'HotSpotProperties')
         self._check_and_set(hot_spot_properties, 'hotSpotParallelPlane',
-                            params['hotspot'].get('hotSpotParallelPlane'))
+                            self._str_none(params['hotspot'].get('hotSpotParallelPlane')))
         self._check_and_set(hot_spot_properties, 'hotSpotPerpendicularPlane',
-                            params['hotspot'].get('hotSpotPerpendicularPlane'))
+                            self._str_none(params['hotspot'].get('hotSpotPerpendicularPlane')))
         self._check_and_set(hot_spot_properties, 'oversampleDownwardRegion',
                             self._str_none(params['hotspot'].get('oversampleDownwardRegion')))
         self._check_and_set(hot_spot_properties, 'oversampleUpwardRegion',
@@ -384,10 +383,10 @@ class Directions(Component):
                             self._str_none(params['hotspot'].get('numberOfUpwardDirections')))
         self._check_and_set(hot_spot_upward_region, 'omega', self._str_none(params['hotspot'].get('omegaUp')))
 
-        penumbra_mode = et.SubElement(Directions, 'Penumbra')
+        penumbra_mode = et.SubElement(directions, 'Penumbra')
         self._check_and_set(penumbra_mode, 'mode', self._str_none(params.get('penumbraMode')))
 
-        expert_mode_zone = et.SubElement(Directions, 'ExpertModeZone')
+        expert_mode_zone = et.SubElement(directions, 'ExpertModeZone')
         self._check_and_set(expert_mode_zone, 'numberOfAngularSector',
                             self._str_none(params['expert'].get('numberOfAngularSector')))
         self._check_and_set(expert_mode_zone, 'numberOfLayers',
@@ -401,7 +400,7 @@ class Plots(Component):
     def _check_params(self, params):
         return True
 
-    def _write575(self, params, landcover, voxel_size, *args, **kwargs):
+    def _write575(self, params, land_cover, voxel_size, *args, **kwargs):
         plots = et.SubElement(self.xml_root, self.COMPONENT_NAME)
         self._check_and_set(plots, 'isVegetation', self._str_none(params['general'].get('isVegetation')))
         # self._check_and_set(Plots,'addExtraPlotsTextFile', self._str_none(params['general'].get('addExtraPlotsTextFile')))
@@ -409,14 +408,15 @@ class Plots(Component):
         import_fichier_raster = et.SubElement(self.xml_root, 'ImportationFichierRaster')
 
         ground_types = params['general']['ground_types']
-        # TODO: move this out, this really should be part of the definition
-        landcover = + 1
 
-        for row in range(landcover.shape[0]):
-            for col in range(landcover.shape[1]):
-                if col == landcover.shape[1] | landcover[row, col] != landcover[row, col + 1]:
+        if land_cover is None:
+            return
 
-                    plot_type = landcover[row, col]
+        for row in range(land_cover.shape[0]):
+            for col in range(land_cover.shape[1]):
+                if col == land_cover.shape[1] | land_cover[row, col] != land_cover[row, col + 1]:
+
+                    plot_type = land_cover[row, col]
 
                     plot = et.SubElement(plots, 'Plot')
                     self._check_and_set(plot, 'form', '0')
@@ -481,12 +481,12 @@ class Plots(Component):
                         litter_id = ground_types.ids.index(plot_type)
                         self._check_and_set(plot, 'type', '0')
 
-                        GroundOpticalPropertyLink = et.SubElement(plot, 'GroundOpticalPropertyLink')
-                        self._check_and_set(vegetation_optical_property_link, 'ident',
+                        ground_optical_property_link = et.SubElement(plot, 'GroundOpticalPropertyLink')
+                        self._check_and_set(ground_optical_property_link, 'ident',
                                             params['ground'].get('ident')[litter_id])
-                        self._check_and_set(vegetation_optical_property_link, 'indexFctPhase',
+                        self._check_and_set(ground_optical_property_link, 'indexFctPhase',
                                             self._str_none(params['ground'].get('indexFctPhase')[litter_id]))
-                        self._check_and_set(GroundOpticalPropertyLink, 'type',
+                        self._check_and_set(ground_optical_property_link, 'type',
                                             self._str_none(params['ground'].get('type')[litter_id]))
 
                         ground_thermal_property_link = et.SubElement(plot, 'GroundThermalPropertyLink')
@@ -549,7 +549,7 @@ class CoeffDiff(Component):
 
             understory_multiplicative_factor_for_lut = et.SubElement(lambertian_node_multiplicative_factor_for_lut,
                                                                      'lambertianMultiplicativeFactorForLUT')
-            self._check_and_set(understory_multiplicative_factor_for_lut, 'diff   useTransmittanceFactor',
+            self._check_and_set(understory_multiplicative_factor_for_lut, 'diffuseTransmittanceFactor',
                                 self._str_none(params['lop2d'].get('diffuseTransmittanceFactor')))
             self._check_and_set(understory_multiplicative_factor_for_lut, 'directTransmittanceFactor',
                                 self._str_none(params['lop2d'].get('directTransmittanceFactor')))
@@ -567,13 +567,13 @@ class CoeffDiff(Component):
         # *** 3d turbid spectra ***
         UnderstoryMultiFunctions = et.SubElement(coeff_diff, 'UnderstoryMultiFunctions')
         self._check_and_set(UnderstoryMultiFunctions, 'outputLADFile',
-                            self._str_none(params['understroy_multi_functions'].get('outputLADFile')))
+                            self._str_none(params['understory_multi_functions'].get('outputLADFile')))
         self._check_and_set(UnderstoryMultiFunctions, 'integrationStepOnPhi',
-                            self._str_none(params['understroy_multi_functions'].get('integrationStepOnPhi')))
+                            self._str_none(params['understory_multi_functions'].get('integrationStepOnPhi')))
         self._check_and_set(UnderstoryMultiFunctions, 'integrationStepOnTheta',
-                            self._str_none(params['understroy_multi_functions'].get('integrationStepOnTheta')))
+                            self._str_none(params['understory_multi_functions'].get('integrationStepOnTheta')))
         self._check_and_set(UnderstoryMultiFunctions, 'specularEffects',
-                            self._str_none(params['understroy_multi_functions'].get('specularEffects')))
+                            self._str_none(params['understory_multi_functions'].get('specularEffects')))
         # self._check_and_set(UnderstoryMultiFunctions, 'useBunnick','0')
 
         for model_name, ident, lad in zip(params['lop2d'].get('ModelName'), params['lop2d'].get('ident'),
@@ -597,8 +597,8 @@ class CoeffDiff(Component):
             self._check_and_set(understory_multi, 'databaseName', params['lop3d'].get('databaseName'))
             self._check_and_set(understory_multi, 'deltaT', self._str_none(params['lop3d'].get('deltaT')))
             self._check_and_set(understory_multi, 'dimFoliar', self._str_none(params['lop3d'].get('dimFoliar')))
-            self._check_and_set(understory_multi, 'ident', ident)
-            self._check_and_set(understory_multi, 'lad', lad)
+            self._check_and_set(understory_multi, 'ident', self._str_none(ident))
+            self._check_and_set(understory_multi, 'lad', self._str_none(lad))
             self._check_and_set(understory_multi, 'meanT', self._str_none(params['lop3d'].get('meanT')))
             # self._check_and_set(UnderstoryMulti, 'useSpecular', self._str_none(coeff_diff.useSpecular))
             # if coeff_diff.useSpecular == 1
@@ -650,11 +650,11 @@ class CoeffDiff(Component):
         temperatures = et.SubElement(coeff_diff, 'Temperatures')
 
         thermal_function = et.SubElement(temperatures, 'ThermalFunction')
-        self._check_and_set(thermal_function, 'deltaT', self._str_none(params['lop3d'].get('deltaT')))
-        self._check_and_set(thermal_function, 'idTemperature', params['lop3d'].get('idTemperature'))
-        self._check_and_set(thermal_function, 'meanT', self._str_none(params['lop3d'].get('meanT')))
+        self._check_and_set(thermal_function, 'deltaT', self._str_none(params['temperature'].get('deltaT')))
+        self._check_and_set(thermal_function, 'idTemperature', params['temperature'].get('idTemperature'))
+        self._check_and_set(thermal_function, 'meanT', self._str_none(params['temperature'].get('meanT')))
         self._check_and_set(thermal_function, 'override3DMatrix',
-                            self._str_none(params['lop3d'].get('override3DMatrix')))
+                            self._str_none(params['temperature'].get('override3DMatrix')))
         # self._check_and_set(ThermalFunction, 'useOpticalFactorMatrix', self._str_none(params['lop3d'].get('useOpticalFactorMatrix')))
 
 
@@ -733,16 +733,15 @@ class Object3d(Component):
                             self._str_none(params['optical_property'].get('sameOPObject')))
 
         object_property_link = et.SubElement(object_optical_prop, 'OpticalPropertyLink')
-        self._check_and_set(object_property_link, 'ident', params['optical_property'].get('model_name'))
+        self._check_and_set(object_property_link, 'ident', params['optical_property'].get('modelName'))
         self._check_and_set(object_property_link, 'indexFctPhase',
                             self._str_none(params['optical_property'].get('indexFctPhase')))
         self._check_and_set(object_property_link, 'type', self._str_none(params['optical_property'].get('type')))
 
         thermal_property_link = et.SubElement(object_optical_prop, 'ThermalPropertyLink')
-        self._check_and_set(thermal_property_link, 'idTemperature', params['temperature'].get('id_temperature'))
+        self._check_and_set(thermal_property_link, 'idTemperature', params['temperature'].get('idTemperature'))
         self._check_and_set(thermal_property_link, 'indexTemperature',
-                            self._str_none(params['temperature'].get('indexTemp)')))
-        object_optical_prop.appendChild(thermal_property_link)
+                            self._str_none(params['temperature'].get('indexTemp')))
 
         object_type_prop = et.SubElement(obj, 'ObjectTypeProperties')
         self._check_and_set(object_type_prop, 'sameOTObject',
@@ -762,18 +761,18 @@ class Maket(Component):
     def _check_params(self, params):
         return True
 
-    def _write570(self, params):
+    def _write575(self, params):
         maket = et.SubElement(self.xml_root, self.COMPONENT_NAME)
         self._check_and_set(maket, 'dartZone', self._str_none(params['dartZone']))
         self._check_and_set(maket, 'exactlyPeriodicScene', self._str_none(params['exactlyPeriodicScene']))
         self._check_and_set(maket, 'useRandomGenerationSeed', self._str_none(params['useRandomGenerationSeed']))
 
         # scene
-        Scene = et.SubElement(self.xml_root, 'Scene')
+        scene = et.SubElement(self.xml_root, 'Scene')
+
         cell_dimensions = et.SubElement(self.xml_root, 'cell_dimensions')
         self._check_and_set(cell_dimensions, 'x', self._str_none(params['voxelDim'][0]))
         self._check_and_set(cell_dimensions, 'z', self._str_none(params['voxelDim'][2]))
-        Scene.appendChild(cell_dimensions)
 
         scene_dimensions = et.SubElement(self.xml_root, 'SceneDimensions')
         self._check_and_set(scene_dimensions, 'x', self._str_none(params['sceneDim'][1]))
@@ -810,12 +809,11 @@ class Maket(Component):
                                 self._str_none(params['topography'].get('presenceOfTopography')))
 
             topography_properties = et.SubElement(topography, 'TopographyProperties')
-            self._check_and_set(topography_properties, 'fileName', self._str_none(params['outputFileName']))
-            topography.appendChild(topography_properties)
+            self._check_and_set(topography_properties, 'fileName', self._str_none(params['DEM']['outputFileName']))
 
             DEM_properties = et.SubElement(soil, 'DEM_properties')
             self._check_and_set(DEM_properties, 'createTopography',
-                                self._str_none(params['topography'].get('createTopography')))
+                                self._str_none(params['DEM'].get('createTopography')))
 
             DEM_generator = et.SubElement(DEM_properties, 'DEMGenerator')
             self._check_and_set(DEM_generator, 'caseDEM', self._str_none(params['DEM'].get('caseDEM')))
@@ -831,7 +829,7 @@ class Maket(Component):
         location = et.SubElement(self.xml_root, 'LatLon')
         self._check_and_set(location, 'altitude', self._str_none(params.get('location')[2]))
         self._check_and_set(location, 'latitude', self._str_none(params.get('location')[0]))
-        self._check_and_set(location, 'longitude', self._str_none(params.get('longitude')[1]))
+        self._check_and_set(location, 'longitude', self._str_none(params.get('location')[1]))
 
 
 class Atmosphere(Component):

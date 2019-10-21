@@ -45,7 +45,6 @@ output_location ='output'
     # SpectralIntervals
     # SpectralIntervalsProperties
     [phase.spectral]
-        bandNumber = [1]
         deltaLambda= [0.001]               # band width (fwhm) in micrometer
         meanLambda = [0.4005]                  # central wavelength in micrometer
         spectralDartMode = 0                 # 0 = R (reflectance mode), 1 = T + R (reflectance and thermal mode, 2 = T (thermal mode)
@@ -54,7 +53,7 @@ output_location ='output'
         temperatureMode = 0
 
     # temperatureAtmosphere
-    [phase.atmopsphere]
+    [phase.atmosphere]
         atmosphericApparentTemperature = 300.0
         SKYLForTemperatureAssignation = 0.0         # skylTemperature
     
@@ -73,6 +72,7 @@ output_location ='output'
         commonSkylCheckBox = 1
         # SpectralIrradianceValue
         Skyl = 0
+        bandNumber = 1
         irradiance = 0
         # irradianceDatabaseNode
         databaseName = 'dart_atmosphere.db'  # name of atmosphere database
@@ -197,6 +197,7 @@ output_location ='output'
 ## Maket
 [maket]
     voxelDim = [0.25, 0.25, 0.25] # dx, dy, dz
+    sceneDim = [900, 300, 0] # x, y, z
     location = [0.0, 0.0, 0.0] # lat, lon, alt
 
     useRandomGenerationSeed = 1
@@ -204,22 +205,22 @@ output_location ='output'
     dartZone = 0
 
     [maket.optical_property]
-    type = 0
-    ident = 'Lamb_ro=1'
-    indexFctPhase = 0
+        type = 0
+        ident = 'Lamb_ro=1'
+        indexFctPhase = 0
 
     [maket.thermal_property]
-    idTempertature = 'thermal_function_290_310'
-    indexTemperature = 0
+        idTemperature = 'thermal_function_290_310'
+        indexTemperature = 0
 
     [maket.topography]
-    presenceOfTopography = 0
-    fileName = 'DEM_2m.mp#'
+        presenceOfTopography = 0
+        fileName = 'DEM_2m.mp#'
 
     [maket.DEM]
-    createTopography = 0        # read external DEM
-    caseDEM = 0
-    outputFileName = ''
+        createTopography = 0        # read external DEM
+        caseDEM = 0
+        outputFileName = ''
     
     [maket.DEM5]
         dataEncoding = 0 # little endian
@@ -264,12 +265,12 @@ output_location ='output'
         hCFAI = 4000    # height midatmosphere
         hCFHA = 80000   # height upper atmosphere
         zHA = 2000
-#        BA_altitude =
+        BA_altitude = 0
 
     [atmosphere.water]
-            include = 1
-            defWaterAmount = 1
-            mulfactorH20 = 1.0
+        include = 1
+        defWaterAmount = 1
+        mulfactorH20 = 1.0
 
     # if working with a database -> typeOfAtmosphere = 0
     [atmosphere.optical_property_db]
@@ -292,6 +293,7 @@ output_location ='output'
              hgParametersModelName = "RURALV23"     # aerosol Henyey Greenstein Parameters
              cumulativeModelName = "RURALV23"
              dataBaseName = "dart_atmosphere.db"
+             group = 1
 
     # using monospectral -> type_of_atmosphere = 1
     [atmosphere.optical_property]
@@ -370,6 +372,7 @@ output_location ='output'
         ident = ['litter']                      # phase function's name
 	 	databaseName = 'Lambertian.db'        # 2d reflectance database filename
 	 	roStDev = 0.000                       # reflectance variability
+	 	lad = [5]
 	 	useMultiplicativeFactorForLUT = 1
 	 	useSpecular = 0
 	 	isFluorescent = 0                     # Fluorescence flag
@@ -383,7 +386,7 @@ output_location ='output'
 	 	reflectanceFactor = 1.0
 	 	specularIntensityFactor = 1.0
 
-    [coeff_diff.under_story_multi_functions]
+    [coeff_diff.understory_multi_functions]
         # UnderstoryMultiFunctions
         integrationStepOnPhi = 10
         integrationStepOnTheta = 1
@@ -404,7 +407,7 @@ output_location ='output'
         specularDatabaseName = 'Roughness.db'
         specularModelName = 'basic'
         useMultiplicativeFactorForLUT = 1
-        useOpticalFactorMatrix = 0
+        useOpticalFactorMatrix = 0 # if this factor is true, we have to declare an additional input file... not yet implemented! TODO!
         # DirectionalClumpingIndexProperties
         clumpinga = 0
         clumpingb = 0
@@ -420,10 +423,6 @@ output_location ='output'
         LeafTransmittanceFactor = 1
         abaxialReflectanceFactor = 1
         adaxialReflectanceFactor = 1
-        useOpticalFactorMatrix = 0 # if this factor is true, we have to declare an additional input file... not yet implemented! TODO!
-    
-        # Fluorescence
-        isFluorescent = 0
     
     # Temperatures
     # ThermalFunction

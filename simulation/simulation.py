@@ -39,18 +39,21 @@ class Simulation(object):
         self.default_config = default_config
         self.non_generated_components = no_gen
 
-        # if no user_config is supplied, create minimal working version
+        self.land_cover = land_cover
+        self.maket = maket
+
+        # if no user_config is supplied, create minimal user_config for simulation directory instantiation
         if config is None:
             user_config = {'dart_version': version, 'simulation_name': simulation_name,
                            'simulation_location': simulation_location, 'dart_path': dart_path}
         else:
             user_config = config
-        self._create_simulation_dir(user_config, *args, **kwargs)
+        user_config = self._create_simulation_dir(user_config, *args, **kwargs)
 
         self.components = {}
         self.component_params = {}
         if config is not None:
-            self.config = self._config_to_file(config, patch)
+            self.config = self._config_to_file(user_config, patch)
             self._split_config()
         else:
             self.non_generated_components = list(COMPONENTS.keys())
@@ -152,6 +155,8 @@ class Simulation(object):
                 with open(self.user_config_path, 'w+') as f:
                     f.write(toml.dumps(user_config))
 
+        return user_config
+
     def _config_to_file(self, user_config, patch=True):
         if self.default_config is None:
             # get most recent version still before this version
@@ -172,20 +177,21 @@ class Simulation(object):
         return config
 
     @staticmethod
-    def _patch_configs(self, src_config, patch_config):
+    def _patch_configs(src_config, patch_config):
         if src_config['dart_version'] == patch_config['dart_version']:
-            config = utils.general.merge_dicts(src_config, patch_config)
+            return utils.general.merge_dicts(src_config, patch_config)
         else:
             raise Exception('Version inconsistency')
 
     def _split_config(self):
-        self.component_params['phase'] = self.config.get('phase')
-        self.component_params['directions'] = self.config.get('directions')
-        self.component_params['maket'] = self.config.get('maket')
-        self.component_params['atmosphere'] = self.config.get('atmosphere')
-        self.component_params['object3d'] = self.config.get('object3d')
-        self.component_params['plots'] = self.config.get('plots')
-        self.component_params['coeff_diff'] = self.config.get('coeff_diff')
+        self.component_params['phase'] = {'params': self.config.get('phase')}
+        self.component_params['directions'] = {'params': self.config.get('directions')}
+        self.component_params['maket'] = {'params': self.config.get('maket')}
+        self.component_params['atmosphere'] = {'params': self.config.get('atmosphere')}
+        self.component_params['object3d'] = {'params': self.config.get('object3d')}
+        self.component_params['plots'] = {'params': self.config.get('plots'), 'land_cover': self.land_cover,
+                                          'voxel_size': self.config['maket'].get('voxel_size')}
+        self.component_params['coeff_diff'] = {'params': self.config.get('coeff_diff')}
 
     def _generate_components(self, ignore=None):
         for comp, cls in COMPONENTS.items():
@@ -195,8 +201,7 @@ class Simulation(object):
             if cls is None:
                 raise NotImplementedError('Not all Components are implemented. Use from_simulation to simply' +
                                           ' copy the missing xml files')
-
-            self.components[comp] = cls(self.component_params[comp])
+            self.components[comp] = cls(simulation_dir=self.path, version=self.version, **self.component_params[comp])
 
     def to_file(self):
         for component in self.components.values():
