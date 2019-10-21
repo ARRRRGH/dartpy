@@ -27,6 +27,7 @@ output_location ='output'
     toaToBoa = 2                         # 1 = Analytic model, 2 = Radiative transfer simulation, 3 = No atmosphere ( TOA = BOA )
     
     [phase.expert_flux_tracking]
+        acceleration_engine = 1e-3
         albedoThreshold = 1E-7               # the DART run stops if the variation of scene albedo of consecutive iterations is less than albedoThreshold
         expertMode = 1
         illuminationRepartitionMode = 2
@@ -35,19 +36,24 @@ output_location ='output'
         nbSubSubcenterTurbidEmission = 40
         nbSubcenterIllumination = 8          # number of rays simulated per voxel axis ( 10 per axis = 100 rays entering the voxel )
         nbSubcenterVolume = 2
+        nbTrianglesWithinVoxelAcceleration = 10
         nbThreads = 12                       # number of threads in DART ray tracing
-        surfaceBarycenterEnabled = 1         # ??? TODO: Find out what this does!
         subFaceBarycenterEnabled = 1         # ??? TODO: Find out what this does!
+        subFaceBarycenterSubdivision = 1         # ??? TODO: Find out what this does!
         useExternalScripts = 0               # ??? TODO: Find out what this does!
         distanceBetweenIlluminationSubCenters = 0.1 # ??? TODO: Find out what this does! -> could be the replacement of nbSubcenterIllumination...
         isInterceptedPowerPerDirectionForSpecularCheck = 0 # ??? TODO: Find out what this does!
-        
+        maxNbSceneCrossing = 1000
+        sparseVoxelAcceleration = 1
+        thermalEmissionSurfaceSubdivision=0.01
+        triangleStorageMode = 0
+
     # SpectralIntervals
     # SpectralIntervalsProperties
     [phase.spectral]
         deltaLambda= [0.001]               # band width (fwhm) in micrometer
         meanLambda = [0.4005]                  # central wavelength in micrometer
-        spectralDartMode = 0                 # 0 = R (reflectance mode), 1 = T + R (reflectance and thermal mode, 2 = T (thermal mode)
+        spectralDartMode = [0]                 # 0 = R (reflectance mode), 1 = T + R (reflectance and thermal mode, 2 = T (thermal mode)
 
         # SpectralDomainTir
         temperatureMode = 0
@@ -61,6 +67,11 @@ output_location ='output'
     [phase.flux_tracking]
         gaussSiedelAcceleratingTechnique = 0
         numberOfIteration = 5                # maximum number of iterations in flux tracking
+
+    [phase.image_illumination]
+        disableSolarIllumination = 0
+        disableThermalEmission = 0
+        sideIlluminationEnabled = 0
 
     # nodeIlluminationMode
     [phase.irradiance]
@@ -80,21 +91,61 @@ output_location ='output'
         irradianceTable = 'TOASolar'
         weightAtmosphereParameters = 1
         weightReflectanceParameters = 1
+        sceneAverageTemperatureForPonderation = 300
     
     # DartProduct
-    [phase.products]
-        # dartModuleProducts
+    [phase.products.common]
+        polarizationProducts = 0
+        radiativeBudgetProducts = 0          # incident, intercepted, absorbed and scattered radiance per voxel
+
+    [phase.products.flux_tracking]
         allIterationsProducts = 1            # results obtained at each iteration
         brfProducts = 1                      # BRF / radiance products (incl. images)
-        lidarImageProducts = 0
-        lidarProducts = 0
+#        lidarImageProducts = 0
+#        lidarProducts = 0
         order1Products = 0                   # separate output for earth scene first order scattering
-        radiativeBudgetProducts = 0          # incident, intercepted, absorbed and scattered radiance per voxel
         temperaturePerTrianglePerCell = 0
-        polarizationProducts = 0
-    
+
+    [phase.products.radiative_budget_properties]
+            binaryFormat = 1
+            budget3DParSurface = 0
+            budget3DParType = 0
+            budgetTotalParType = 0
+            budgetUnitModeR = 1
+            extrapolation = 1
+            fIRfARfSRfINTR1DProducts = 0
+            fIRfARfSRfINTR3DProducts = 1
+            fIRfARfSRfINTR2DProducts = 1
+            budget2DParType = 0
+
+        [phase.products.radiative_budget_properties.cell_components]
+            absorbed = 1
+            backEntry = 0
+            backExit = 0
+            bottomEntry = 0
+            bottomExit = 0
+            emitted = 1
+            frontEntry = 0
+            frontExit = 0
+            intercepted = 1
+            leftEntry = 0
+            leftExit = 0
+            rightEntry = 0
+            rightExit = 0
+            scattered = 1
+            topEntry = 1
+            topExit = 1
+            totalEntry = 0
+            totalExit = 0
+
+        [phase.products.radiative_budget_properties.element_components]
+            absorbed = 1
+            emitted = 1
+            intercepted = 1
+            scattered = 1
+
     # BrfProductsProperties
-    [phase.products.brf]
+    [phase.products.brf_properties]
         brfProduct = 1                       # mean BRF per image (text file with mean reflectance factor per upward direction
         extrapolation = 1
         horizontalOversampling = 1
@@ -107,13 +158,19 @@ output_location ='output'
         projection = 1                       # Orhto-Image: 0 = no ortho images, 1 = energy conservation, 2 = reflectance conservation, 3 = industry standard (projected on scene surface)
         sensorOversampling = 1
         sensorPlaneprojection = 1            # Sensor plane images
-
+        pixelToSceneCorrespondences = 0
+        transmittanceImages = 0
+        centralizedBrfProduct = 1
         # ExpertModeZone_Etalement
         etalement = 2
         # ExpertModeZone_Projection
         keepNonProjectedImage = 0
+        generate_PerTypeProduct = 0
         # ExpertModeZone_maskProjection
-        mask_projection = 0
+        albedoImages = 1
+
+        order1only = 1
+        images_only = 1
 
     [phase.products.DEM]
         # maketModuleProducts
@@ -123,27 +180,70 @@ output_location ='output'
         laiProducts = 0                      # LAI outputs in 2D and 3D
         objectGeneration = 0
 
+        areaMaketPerType = 0
+        totalMaketArea = 1
+
+        coverRatePerType = 0
+        coverRatePrecision = 0.1
+        totalMaketCoverRate = 1
+
+        lai1DProducts = 1
+        lai3DProducts = 1
+        nonEmptyCellsLayer = 1
+
     [phase.sensor]
-        importPushbroomSensorFiles = 0
+        # importPushbroomSensorFiles = 0
         # SensorImageSimulation
         importMultipleSensors = 0
-        # Pinhole
-        cameraRotation = 0                   # Intrinsic rotation of camera (anti-clockwise) [?]
-        defCameraOrientation = 0             # define the camera axis orientation
-        setImageSize = 0                     # by default the minimum area covered by the scene on the ground
-        # Sensor
-        sensorPosX = 225                     # x coordinate of the camera [m]
-        sensorPosY = 150                     # y corrdinate of the camera [m]
-        sensorPosZ = 4429                    # camera altitude [m]
-        # Pushbroom
-        importThetaPhi = 1                   # import viewing angles per pixel as text files
-        # Importation
-        altitude = 4430                      # scanner altitude [m]
-        offsetX = 1                          # offset x from the beginning of the map relative to the origin position of the scene
-        offsetY = 1                          # offset y from the beginning of the map relative to the origin position of the scene
-        phiFile = 'azimuth.txt'              # filename of azimuth angles file
-        resImage = 2                         # Image resolution (pixel size) [m]
-        thetaFile = 'zenith.txt'             # filename of zenith angles file
+        fileN = ''
+
+        [[phase.sensor.pinhole]] # copy the following section for multiple pinholes
+            # Pinhole
+            defCameraOrientation = 0             # define the camera axis orientation
+            setImageSize = 0                     # by default the minimum area covered by the scene on the ground
+            ifFishEye = 0                        # TODO: fish_eye not yet defined
+
+            # Sensor
+            sensorPosX = 225                     # x coordinate of the camera [m]
+            sensorPosY = 150                     # y corrdinate of the camera [m]
+            sensorPosZ = 4429                    # camera altitude [m]
+
+            orientDefType = 0                    # intrinsic or tait_bryan
+            intrinsic_ZYZ = {cameraRotation = 0, cameraPhi = 225, cameraTheta = 15}
+            tait_bryan = {pitch = -90, roll = 180, rotDefBT = 5, yaw = 0}
+
+            defNbPixels = 1 # whether to specify or not
+            nbPixelsX = 60
+            nbPixelsY = 50
+
+            definitionFOV = 1 # fov or aov
+            fov = {sizeImageX = 30, sizeImageY = 25}
+            aov = {x = 30, y = 25}
+
+
+        [[phase.sensor.pushbroom]] # copy the following section for multiple pushbrooms
+            # Pushbroom
+            sensorPosX = 2225                   # x coordinate of the camera [m]
+            sensorPosY = 150                     # y corrdinate of the camera [m]
+            sensorPosZ = 4429                    # camera altitude [m]
+
+            is_import = 0                       # import viewing angles per pixel as text files
+            [phase.sensor.pushbroom.import]
+                altitude = 4430                      # scanner altitude [m]
+                offsetX = 1                          # offset x from the beginning of the map relative to the origin position of the scene
+                offsetY = 1                          # offset y from the beginning of the map relative to the origin position of the scene
+                phiFile = 'azimuth.txt'              # filename of azimuth angles file
+                resImage = 2                         # Image resolution (pixel size) [m]
+                thetaFile = 'zenith.txt'             # filename of zenith angles file
+
+            [phase.sensor.pushbroom.no_import]
+                pitchLookAngle = 0
+                platformAzimuth = 0
+                platformDirection = 0
+
+
+
+
 
 ## Directions
 [directions]
@@ -370,19 +470,20 @@ output_location ='output'
     [coeff_diff.lop2d]
         ModelName = ['litter']                  # 2d reflectance model (how it is stored in database)
         ident = ['litter']                      # phase function's name
+        is_fluorescent = [0]                    # TODO: need maybe other parameters to be per model in list
 	 	databaseName = 'Lambertian.db'        # 2d reflectance database filename
 	 	roStDev = 0.000                       # reflectance variability
 	 	lad = [5]
 	 	useMultiplicativeFactorForLUT = 1
 	 	useSpecular = 0
-	 	isFluorescent = 0                     # Fluorescence flag
-	 	useSameOpticalFactorMatrixForAllBands = 0 #TODO: figure out what this new flag does! If this flag is set, the user has to define a further input file... this has to be implemented here as well first!
 	 	useProspectExternalModule = 0          # ProspectExternalModule
         # lambertianNodeMultiplicativeFactorForLUT
 	 	useSameFactorForAllBands = 1
+	    useSameOpticalFactorMatrixForAllBands = 0 #TODO: figure out what this new flag does! If this flag is set, the user has to define a further input file... this has to be implemented here as well first!
         # lambertianMultiplicativeFactorForLUT
 	 	diffuseTransmittanceFactor = 1.0
 	 	directTransmittanceFactor = 1.0
+	 	diffuseTransmittanceAcceleration = 0
 	 	reflectanceFactor = 1.0
 	 	specularIntensityFactor = 1.0
 
@@ -391,38 +492,44 @@ output_location ='output'
         integrationStepOnPhi = 10
         integrationStepOnTheta = 1
         outputLADFile = 0
-        useSpecular = 0  # now we can assign for each vegetation element if it has a specular element or not... default is off!
-        specularEffects = 0 #has been replaced wiht integrationStepOnPhi and integrationStepOnTheta
-    
+#        useSpecular = 0  # now we can assign for each vegetation element if it has a specular element or not... default is off!
+#        specularEffects = 0 #has been replaced wiht integrationStepOnPhi and integrationStepOnTheta
+
     # UnderstoryMulti
     [coeff_diff.lop3d]
         isSingleLeafSpec = 0
         ModelName = ['leaf_top']                # 3d reflectance model (how it is stored in database)
         lad = [5]                               # leaf angle distribution: 0 = uniform, 1 = spherical, 2 = erectophile, 3 = planophile, 4 = extremophile, 5 = plagiophile,
-        ident = ['turbid_leaf_top']            # phase function's name
-        databaseName = 'Vegetation.db'        # 3d reflectance database filename
-        deltaT = 10
-        dimFoliar = 0.01                      # leaf dimension (hot spot parameter)
-        meanT = 300
-        specularDatabaseName = 'Roughness.db'
-        specularModelName = 'basic'
-        useMultiplicativeFactorForLUT = 1
-        useOpticalFactorMatrix = 0 # if this factor is true, we have to declare an additional input file... not yet implemented! TODO!
+        ident = ['Turbid_Leaf_Deciduous_Phase_Function']            # phase function's name
+        dimFoliar = [0.01]                      # leaf dimension (hot spot parameter)
+        hasDifferentModelForBottom = [0]
+        thermalHotSpotFactor = [0.1]
+
+        databaseName = ['Vegetation.db']        # 3d reflectance database filename
+        useMultiplicativeFactorForLUT = [1]
+
+        useSpecular = [1]
+        specularDatabaseName = ['Roughness.db']
+        specularModelName = ['basic']
+
         # DirectionalClumpingIndexProperties
-        clumpinga = 0
-        clumpingb = 0
-        omegaMax = 0
-        omegaMin = 1
+        clumpinga = [0]
+        clumpingb = [0]
+        omegaMax = [0]
+        omegaMin = [1]
+
         # ProspectExternalModule
-        useProspectExternalModule = 0
-        isFluorescent = 0
+        useProspectExternalModule = [0]
+        isFluorescent = [0]
         # understoryNodeMultiplicativeFactorForLUT
-        useSameFactorForAllBands = 1
-        useSameOpticalFactorMatrixForAllBands = 0 # if this factor is true, we have to declare an additional input file... not yet implemented! TODO!
+        useSameFactorForAllBands = [1]
+        useSameOpticalFactorMatrixForAllBands = [0] # if this factor is true, we have to declare an additional input file... not yet implemented! TODO!
+        useOpticalFactorMatrix = [0] # if this factor is true, we have to declare an additional input file... not yet implemented! TODO!
+
         # understoryMultiplicativeFactorForLUT
-        LeafTransmittanceFactor = 1
-        abaxialReflectanceFactor = 1
-        adaxialReflectanceFactor = 1
+        LeafTransmittanceFactor = [1]
+        reflectanceFactor = [1]
+        diffuseTransmittanceAcceleration = [1]
     
     # Temperatures
     # ThermalFunction
@@ -431,7 +538,10 @@ output_location ='output'
         idTemperature = 'thermal_function_290_310'
         meanT = 300.0
         override3DMatrix = 0
-    
+        singleTemperatureSurface = 1
+        useOpticalFactorMatrix = 0
+        usePrecomputedIPARs = 0
+
     # Fluorescence
     [coeff_diff.fluorescence]
         fluorescenceProducts = 0            # should the fluorescence module be performed
