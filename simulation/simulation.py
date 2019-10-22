@@ -114,7 +114,7 @@ class Simulation(object):
             sim = cls(config, patch=default_patch, no_gen=copy_xml, *args, **kwargs)
 
             # copy component xml files
-            for comp in copy_xml:
+            for comp in sim.non_generated_components:
                 sim.components[comp] = COMPONENTS[comp].from_file(simulation_dir=sim.path, path=path,
                                                                   version=sim.version)
         else:

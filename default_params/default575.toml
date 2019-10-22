@@ -24,10 +24,10 @@ output_location ='output'
     calculatorMethod = 0                 # 0 = Flux-tracking, 1 = Monte-Carlo, 2 = LIDAR
     
     # AtmosphereRadiativeTransfer
-    toaToBoa = 2                         # 1 = Analytic model, 2 = Radiative transfer simulation, 3 = No atmosphere ( TOA = BOA )
+    toaToBoa = 0                         # 1 = Analytic model, 2 = Radiative transfer simulation, 3 = No atmosphere ( TOA = BOA )
     
     [phase.expert_flux_tracking]
-        acceleration_engine = 1e-3
+        acceleration_engine = 0
         albedoThreshold = 1E-7               # the DART run stops if the variation of scene albedo of consecutive iterations is less than albedoThreshold
         expertMode = 1
         illuminationRepartitionMode = 2
@@ -38,7 +38,8 @@ output_location ='output'
         nbSubcenterVolume = 2
         nbTrianglesWithinVoxelAcceleration = 10
         nbThreads = 12                       # number of threads in DART ray tracing
-        subFaceBarycenterEnabled = 1         # ??? TODO: Find out what this does!
+        surfaceBarycenterEnabled = 1
+         subFaceBarycenterEnabled = 1         # ??? TODO: Find out what this does!
         subFaceBarycenterSubdivision = 1         # ??? TODO: Find out what this does!
         useExternalScripts = 0               # ??? TODO: Find out what this does!
         isInterceptedPowerPerDirectionForSpecularCheck = 0 # ??? TODO: Find out what this does!
@@ -46,6 +47,7 @@ output_location ='output'
         sparseVoxelAcceleration = 1
         thermalEmissionSurfaceSubdivision=0.01
         triangleStorageMode = 0
+        distanceBetweenIlluminationSubCenters = 0.1
 
     # SpectralIntervals
     # SpectralIntervalsProperties
@@ -500,38 +502,40 @@ output_location ='output'
     # UnderstoryMulti
     [coeff_diff.lop3d]
         isSingleLeafSpec = 0
-        ModelName = ['leaf_top']                # 3d reflectance model (how it is stored in database)
-        lad = [5]                               # leaf angle distribution: 0 = uniform, 1 = spherical, 2 = erectophile, 3 = planophile, 4 = extremophile, 5 = plagiophile,
-        ident = ['Turbid_Leaf_Deciduous_Phase_Function']            # phase function's name
-        dimFoliar = [0.01]                      # leaf dimension (hot spot parameter)
-        hasDifferentModelForBottom = [0]
-        thermalHotSpotFactor = [0.1]
 
-        databaseName = ['Vegetation.db']        # 3d reflectance database filename
-        useMultiplicativeFactorForLUT = [1]
+        [[coeff_diff.lop3d.model]]
+            ModelName = 'leaf_top'                # 3d reflectance model (how it is stored in database)
+            lad = 5                               # leaf angle distribution: 0 = uniform, 1 = spherical, 2 = erectophile, 3 = planophile, 4 = extremophile, 5 = plagiophile,
+            ident = 'Turbid_Leaf_Deciduous_Phase_Function'            # phase function's name
+            dimFoliar = 0.01                      # leaf dimension (hot spot parameter)
+            hasDifferentModelForBottom = 0
+            thermalHotSpotFactor = 0.1
 
-        useSpecular = [1]
-        specularDatabaseName = ['Roughness.db']
-        specularModelName = ['basic']
+            databaseName = 'Vegetation.db'        # 3d reflectance database filename
+            useMultiplicativeFactorForLUT = 1
 
-        # DirectionalClumpingIndexProperties
-        clumpinga = [0]
-        clumpingb = [0]
-        omegaMax = [0]
-        omegaMin = [1]
+            useSpecular = 1
+            specularDatabaseName = 'Roughness.db'
+            specularModelName = 'basic'
 
-        # ProspectExternalModule
-        useProspectExternalModule = [0]
-        isFluorescent = [0]
-        # understoryNodeMultiplicativeFactorForLUT
-        useSameFactorForAllBands = [1]
-        useSameOpticalFactorMatrixForAllBands = [0] # if this factor is true, we have to declare an additional input file... not yet implemented! TODO!
-        useOpticalFactorMatrix = [0] # if this factor is true, we have to declare an additional input file... not yet implemented! TODO!
+            # DirectionalClumpingIndexProperties
+            clumpinga = 0
+            clumpingb = 0
+            omegaMax = 0
+            omegaMin = 1
 
-        # understoryMultiplicativeFactorForLUT
-        LeafTransmittanceFactor = [1]
-        reflectanceFactor = [1]
-        diffuseTransmittanceAcceleration = [1]
+            # ProspectExternalModule
+            useProspectExternalModule = 0
+            isFluorescent = 0
+            # understoryNodeMultiplicativeFactorForLUT
+            useSameFactorForAllBands = 1
+            useSameOpticalFactorMatrixForAllBands = 0 # if this factor is true, we have to declare an additional input file... not yet implemented! TODO!
+            useOpticalFactorMatrix = 0 # if this factor is true, we have to declare an additional input file... not yet implemented! TODO!
+
+            # understoryMultiplicativeFactorForLUT
+            LeafTransmittanceFactor = 1
+            reflectanceFactor = 1
+            diffuseTransmittanceAcceleration = 1
     
     # Temperatures
     # ThermalFunction

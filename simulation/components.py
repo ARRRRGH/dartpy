@@ -128,7 +128,7 @@ class Component(object):
         return None
 
     def _set(self, el, key, val, check=None):
-        self._check_and_set(el, key, self._str_none(val))
+        self._check_and_set(el, key, self._str_none(val), check=check)
 
     def _check_params(self, params):
         raise NotImplementedError
@@ -236,7 +236,6 @@ class Phase(Component):
         self._set(expert_mode_zone, 'accelerationEngine', params['expert_flux_tracking'].get('acceleration_engine'))
         self._set(expert_mode_zone, 'albedoThreshold', params['expert_flux_tracking'].get('albedoThreshold'))
         self._set(expert_mode_zone, 'expertMode', params['expert_flux_tracking'].get('expertMode'))
-        self._set(expert_mode_zone, 'extrapolationMethod', params['expert_flux_tracking'].get('extrapolationMethod'))
         self._set(expert_mode_zone, 'illuminationRepartitionMode',
                   params['expert_flux_tracking'].get('illuminationRepartitionMode'))
         self._set(expert_mode_zone, 'maxNbSceneCrossing', params['expert_flux_tracking'].get('maxNbSceneCrossing'))
@@ -251,6 +250,8 @@ class Phase(Component):
         self._set(expert_mode_zone, 'subFaceBarycenterSubdivision',
                   params['expert_flux_tracking'].get('subFaceBarycenterSubdivision'))
         self._set(expert_mode_zone, 'useExternalScripts', params['expert_flux_tracking'].get('useExternalScripts'))
+        self._set(expert_mode_zone, 'surfaceBarycenterEnabled',
+                  params['expert_flux_tracking'].get('surfaceBarycenterEnabled'))
         self._set(expert_mode_zone, 'subFaceBarycenterEnabled',
                   params['expert_flux_tracking'].get('subFaceBarycenterEnabled'))
         self._check_and_set(expert_mode_zone, 'isInterceptedPowerPerDirectionForSpecularCheck',
@@ -296,13 +297,13 @@ class Phase(Component):
 
         for n in range(len(params['spectral'].get('meanLambda'))):
             spectral_intervals_properties = et.SubElement(spectral_intervals, 'SpectralIntervalsProperties')
-            self._set(spectral_intervals_properties, 'bandNumber', self._str_none(n))
+            self._set(spectral_intervals_properties, 'bandNumber', n)
             self._set(spectral_intervals_properties, 'deltaLambda',
-                      self._str_none(params['spectral'].get('deltaLambda')[n]))
+                      params['spectral'].get('deltaLambda')[n])
             self._set(spectral_intervals_properties, 'meanLambda',
-                      self._str_none(params['spectral'].get('meanLambda')[n]))
+                      params['spectral'].get('meanLambda')[n])
             self._set(spectral_intervals_properties, 'spectralDartMode',
-                      self._str_none(params['spectral'].get('spectralDartMode')[n]))
+                      params['spectral'].get('spectralDartMode')[n])
 
         # atmosphere brightness temperature
         temperature_atmosphere = et.SubElement(dart_input_parameters, 'temperatureAtmosphere')
@@ -319,7 +320,7 @@ class Phase(Component):
 
         # earth scene irradiance
         node_illumination_mode = et.SubElement(dart_input_parameters, 'nodeIlluminationMode')
-        self._set(node_illumination_mode, 'illuminationMode', params['irradiance'].get('illuminationMode'))
+        #self._set(node_illumination_mode, 'illuminationMode', params['irradiance'].get('illuminationMode'))
         self._set(node_illumination_mode, 'irradianceMode', params['irradiance'].get('irradianceMode'))
 
         irradiance_database_node = et.SubElement(node_illumination_mode, 'irradianceDatabaseNode')
@@ -356,11 +357,12 @@ class Phase(Component):
         self._set(common_products, 'radiativeBudgetProducts',
                   params['products']['common'].get('radiativeBudgetProducts'))
 
-        flux_tracking_products = et.SubElement(dart_module_products, 'FluxTrackingComponents')
-        self._set(flux_tracking_products, 'allIterationsProducts', params['products']['flux_tracking'].get('allIterationsProducts'))
+        flux_tracking_products = et.SubElement(dart_module_products, 'FluxTrackingModeProducts')
+        self._set(flux_tracking_products, 'allIterationsProducts',
+                  params['products']['flux_tracking'].get('allIterationsProducts'))
         self._set(flux_tracking_products, 'brfProducts', params['products']['flux_tracking'].get('brfProducts'))
-        # self._set(dart_module_products, 'lidarImageProducts',        #                     self._str_none(params['products'].get('lidarImageProducts')))
-        # self._set(dart_module_products, 'lidarProducts',        #                     self._str_none(params['products'].get('lidarProducts')))
+        # self._set(dart_module_products, 'lidarImageProducts',        #                     params['products'].get('lidarImageProducts'))
+        # self._set(dart_module_products, 'lidarProducts',        #                     params['products'].get('lidarProducts'))
         self._set(flux_tracking_products, 'order1Products', params['products']['flux_tracking'].get('order1Products'))
         self._set(flux_tracking_products, 'temperaturePerTrianglePerCell',
                   params['products']['flux_tracking'].get('temperaturePerTrianglePerCell'))
@@ -481,20 +483,20 @@ class Phase(Component):
         self._set(brf_products_properties, 'centralizedBrfProduct',
                   params['products']['brf_properties'].get('transmittanceImages'))
 
-        if params.get('image'):
+        if params['products']['brf_properties'].get('image') == 1:
             expert_mode_zone_etalement = et.SubElement(brf_products_properties, 'ExpertModeZone_Etalement')
             self._set(expert_mode_zone_etalement, 'etalement', params['products']['brf_properties'].get('etalement'))
 
-            if params.get('sensorPlaneprojection'):
+            if params['products']['brf_properties'].get('sensorPlaneprojection') == 1:
                 expert_mode_zone_projection = et.SubElement(expert_mode_zone_etalement, 'ExpertModeZone_Projection')
                 self._set(expert_mode_zone_projection, 'keepNonProjectedImage',
                           params['products']['brf_properties'].get('keepNonProjectedImage'))
 
                 expert_mode_zone_per_type = et.SubElement(expert_mode_zone_etalement, 'ExpertModeZone_PerTypeProduct')
-                self._set(expert_mode_zone_projection, 'generate_PerTypeProduct',
+                self._set(expert_mode_zone_per_type, 'generate_PerTypeProduct',
                           params['products']['brf_properties'].get('generate_PerTypeProduct'))
 
-            if params.get('projection'):
+            if params['products']['brf_properties'].get('projection') == 1:
                 expert_mode_zone_mask_projection = et.SubElement(brf_products_properties,
                                                                  'ExpertModeZone_maskProjection')
                 self._set(expert_mode_zone_mask_projection, 'albedoImages',
@@ -511,82 +513,86 @@ class Phase(Component):
             sensors_importation = et.SubElement(sensor_image_simulation, 'SensorsImportation')
             self._set(sensors_importation, 'fileN', params['sensor'].get('fileN'))
 
-        for n in range(len(params['sensor']['pinhole'])):
-            pinhole = et.SubElement(sensor_image_simulation, 'Pinhole')
-            self._set(pinhole, 'defCameraOrientation', params['sensor']['pinhole'][n].get('defCameraOrientation'))
-            self._set(pinhole, 'setImageSize', params['sensor']['pinhole'][n].get('setImageSize'))
-            self._set(pinhole, 'ifFishEye', params['sensor']['pinhole'][n].get('ifFishEye'))
+        if params['sensor'].get('pinhole') is not None:
+            for n in range(len(params['sensor']['pinhole'])):
+                pinhole = et.SubElement(sensor_image_simulation, 'Pinhole')
+                self._set(pinhole, 'defCameraOrientation', params['sensor']['pinhole'][n].get('defCameraOrientation'))
+                self._set(pinhole, 'setImageSize', params['sensor']['pinhole'][n].get('setImageSize'))
+                self._set(pinhole, 'ifFishEye', params['sensor']['pinhole'][n].get('ifFishEye'))
 
-            sensor = et.SubElement(pinhole, 'Sensor')
-            self._set(sensor, 'sensorPosX', params['sensor']['pinhole'][n].get('sensorPosX'))
-            self._set(sensor, 'sensorPosY', params['sensor']['pinhole'][n].get('sensorPosY'))
-            self._set(sensor, 'sensorPosZ', params['sensor']['pinhole'][n].get('sensorPosZ'))
+                sensor = et.SubElement(pinhole, 'Sensor')
+                self._set(sensor, 'sensorPosX', params['sensor']['pinhole'][n].get('sensorPosX'))
+                self._set(sensor, 'sensorPosY', params['sensor']['pinhole'][n].get('sensorPosY'))
+                self._set(sensor, 'sensorPosZ', params['sensor']['pinhole'][n].get('sensorPosZ'))
 
-            orientation_def = et.SubElement(pinhole, 'OrientationDef')
-            self._set(pinhole, 'orientDefType', params['sensor']['pinhole'][n].get('orientDefType'))
-            if params['sensor']['pinhole'][n].get('orientDefType') == 0:
-                camera_orientation = et.SubElement(orientation_def, 'CameraOrientation')
-                self._set(camera_orientation, 'cameraRotation',
-                          params['sensor']['pinhole'][n]['intrinsic_ZYZ'].get('cameraRotation'))
-                self._set(camera_orientation, 'cameraPhi',
-                          params['sensor']['pinhole'][n]['intrinsic_ZYZ'].get('cameraPhi'))
-                self._set(camera_orientation, 'cameraTheta',
-                          params['sensor']['pinhole'][n]['intrinsic_ZYZ'].get('cameraTheta'))
-            elif params['sensor']['pinhole'][n].get('orientDefType') == 1:
-                camera_orient_ypr = et.SubElement(orientation_def, 'CameraOrientYPR')
-                self._set(camera_orient_ypr, 'pitch', params['sensor']['pinhole'][n]['tait_bryan'].get('pitch'))
-                self._set(camera_orient_ypr, 'roll', params['sensor']['pinhole'][n]['tait_bryan'].get('roll'))
-                self._set(camera_orient_ypr, 'rotDefBT', params['sensor']['pinhole'][n]['tait_bryan'].get('rotDefBT'))
-                self._set(camera_orient_ypr, 'yaw', params['sensor']['pinhole'][n]['tait_bryan'].get('yaw'))
-            else:
-                raise Exception('Invalid Camera Orientation Definition')
+                orientation_def = et.SubElement(pinhole, 'OrientationDef')
+                self._set(pinhole, 'orientDefType', params['sensor']['pinhole'][n].get('orientDefType'))
+                if params['sensor']['pinhole'][n].get('orientDefType') == 0:
+                    camera_orientation = et.SubElement(orientation_def, 'CameraOrientation')
+                    self._set(camera_orientation, 'cameraRotation',
+                              params['sensor']['pinhole'][n]['intrinsic_ZYZ'].get('cameraRotation'))
+                    self._set(camera_orientation, 'cameraPhi',
+                              params['sensor']['pinhole'][n]['intrinsic_ZYZ'].get('cameraPhi'))
+                    self._set(camera_orientation, 'cameraTheta',
+                              params['sensor']['pinhole'][n]['intrinsic_ZYZ'].get('cameraTheta'))
+                elif params['sensor']['pinhole'][n].get('orientDefType') == 1:
+                    camera_orient_ypr = et.SubElement(orientation_def, 'CameraOrientYPR')
+                    self._set(camera_orient_ypr, 'pitch', params['sensor']['pinhole'][n]['tait_bryan'].get('pitch'))
+                    self._set(camera_orient_ypr, 'roll', params['sensor']['pinhole'][n]['tait_bryan'].get('roll'))
+                    self._set(camera_orient_ypr, 'rotDefBT', params['sensor']['pinhole'][n]['tait_bryan'].get('rotDefBT'))
+                    self._set(camera_orient_ypr, 'yaw', params['sensor']['pinhole'][n]['tait_bryan'].get('yaw'))
+                else:
+                    raise Exception('Invalid Camera Orientation Definition')
 
-            cam_image_FOV = et.SubElement(pinhole, 'CamImageFOV')
-            self._set(cam_image_FOV, 'defNbPixels', params['sensor']['pinhole'][n].get('defNbPixels'))
-            self._set(cam_image_FOV, 'definitionFOV', params['sensor']['pinhole'][n].get('definitionFOV'))
+                cam_image_FOV = et.SubElement(pinhole, 'CamImageFOV')
+                self._set(cam_image_FOV, 'defNbPixels', params['sensor']['pinhole'][n].get('defNbPixels'))
+                self._set(cam_image_FOV, 'definitionFOV', params['sensor']['pinhole'][n].get('definitionFOV'))
 
-            if params['sensor']['pinhole'][n].get('defNbPixels') == 1:
-                cam_nb_pixels = et.SubElement(cam_image_FOV, 'NbPixels')
-                self._set(cam_nb_pixels, 'nbPixelsX', params['sensor']['pinhole'][n].get('nbPixelsX'))
-                self._set(cam_nb_pixels, 'nbPixelsX', params['sensor']['pinhole'][n].get('nbPixelsY'))
+                if params['sensor']['pinhole'][n].get('defNbPixels') == 1:
+                    cam_nb_pixels = et.SubElement(cam_image_FOV, 'NbPixels')
+                    self._set(cam_nb_pixels, 'nbPixelsX', params['sensor']['pinhole'][n].get('nbPixelsX'))
+                    self._set(cam_nb_pixels, 'nbPixelsX', params['sensor']['pinhole'][n].get('nbPixelsY'))
 
-            if params['sensor']['pinhole'][n].get('definitionFOV') == 0:
-                cam_image_dim = et.SubElement(cam_image_FOV, 'CamImageDim')
-                self._set(cam_image_dim, 'sizeImageX', params['sensor']['pinhole'][n]['fov'].get('sizeImageX'))
-                self._set(cam_image_dim, 'nbPixelsX', params['sensor']['pinhole'][n]['fov'].get('sizeImageY'))
+                if params['sensor']['pinhole'][n].get('definitionFOV') == 0:
+                    cam_image_dim = et.SubElement(cam_image_FOV, 'CamImageDim')
+                    self._set(cam_image_dim, 'sizeImageX', params['sensor']['pinhole'][n]['fov'].get('sizeImageX'))
+                    self._set(cam_image_dim, 'nbPixelsX', params['sensor']['pinhole'][n]['fov'].get('sizeImageY'))
 
-            elif params['sensor']['pinhole'][n].get('definitionFOV') == 1:
-                cam_image_aov = et.SubElement(cam_image_FOV, 'CamImageAOV')
-                self._set(cam_image_aov, 'aovX', params['sensor']['pinhole'][n]['aov'].get('x'))
-                self._set(cam_image_aov, 'aovY', params['sensor']['pinhole'][n]['aov'].get('y'))
+                elif params['sensor']['pinhole'][n].get('definitionFOV') == 1:
+                    cam_image_aov = et.SubElement(cam_image_FOV, 'CamImageAOV')
+                    self._set(cam_image_aov, 'aovX', params['sensor']['pinhole'][n]['aov'].get('x'))
+                    self._set(cam_image_aov, 'aovY', params['sensor']['pinhole'][n]['aov'].get('y'))
 
-        for n in range(len(params['sensor']['pushbroom'])):
-            pushbroom = et.SubElement(sensor_image_simulation, 'Pushbroom')
-
-            if params['sensor']['pushbroom'][n].get('is_import') == 1:
+        if params['sensor'].get('pushbroom') is not None:
+            for n in range(len(params['sensor']['pushbroom'])):
+                pushbroom = et.SubElement(sensor_image_simulation, 'Pushbroom')
                 self._set(pushbroom, 'importThetaPhi', params['sensor']['pushbroom'][n].get('is_import'))
 
-                importation = et.SubElement(pushbroom, 'Importation')
-                self._set(importation, 'sensorAltitude', params['sensor']['pushbroom']['import'][n].get('altitude'))
-                self._set(importation, 'offsetX', params['sensor']['pushbroom'][n]['import'].get('offsetX'))
-                self._set(importation, 'offsetY', params['sensor']['pushbroom'][n]['import'].get('offsetY'))
-                self._set(importation, 'phiFile', params['sensor']['pushbroom'][n]['import'].get('phiFile'))
-                self._set(importation, 'resImage', params['sensor']['pushbroom'][n]['import'].get('resImage'))
-                self._set(importation, 'thetaFile', params['sensor']['pushbroom'][n]['import'].get('thetaFile'))
+                if params['sensor']['pushbroom'][n].get('is_import') == 1:
+                    importation = et.SubElement(pushbroom, 'Importation')
+                    self._set(importation, 'sensorAltitude', params['sensor']['pushbroom']['import'][n].get('altitude'))
+                    self._set(importation, 'offsetX', params['sensor']['pushbroom'][n]['import'].get('offsetX'))
+                    self._set(importation, 'offsetY', params['sensor']['pushbroom'][n]['import'].get('offsetY'))
+                    self._set(importation, 'phiFile', params['sensor']['pushbroom'][n]['import'].get('phiFile'))
+                    self._set(importation, 'resImage', params['sensor']['pushbroom'][n]['import'].get('resImage'))
+                    self._set(importation, 'thetaFile', params['sensor']['pushbroom'][n]['import'].get('thetaFile'))
 
-            elif params['sensor']['pushbroom'][n].get('is_import') == 0:
-                platform = et.SubElement(pushbroom, 'Platform')			
-                self._set(platform, 'pitchLookAngle', params['sensor']['pushbroom'][n]['no_import'].get('pitchLookAngle'))			
-                self._set(platform, 'platformAzimuth', params['sensor']['pushbroom'][n]['no_import'].get('platformAzimuth'))
-                self._set(platform, 'platformDirection', params['sensor']['pushbroom'][n]['no_import'].get('platformDirection'))			
+                elif params['sensor']['pushbroom'][n].get('is_import') == 0:
+                    platform = et.SubElement(pushbroom, 'Platform')
+                    self._set(platform, 'pitchLookAngle',
+                              params['sensor']['pushbroom'][n]['no_import'].get('pitchLookAngle'))
+                    self._set(platform, 'platformAzimuth',
+                              params['sensor']['pushbroom'][n]['no_import'].get('platformAzimuth'))
+                    self._set(platform, 'platformDirection',
+                              params['sensor']['pushbroom'][n]['no_import'].get('platformDirection'))
 
-            else:
-                raise Exception('Import is not properly defined. Should be 0 or 1.')
+                else:
+                    raise Exception('Import is not properly defined. Should be 0 or 1.')
 
-            sensor = et.SubElement(pushbroom, 'Sensor')
-            self._set(sensor, 'sensorPosX', params['sensor']['pushbroom'][n].get('sensorPosX'))
-            self._set(sensor, 'sensorPosY', params['sensor']['pushbroom'][n].get('sensorPosY'))
-            self._set(sensor, 'sensorPosZ', params['sensor']['pushbroom'][n].get('sensorPosZ'))
+                sensor = et.SubElement(pushbroom, 'Sensor')
+                self._set(sensor, 'sensorPosX', params['sensor']['pushbroom'][n].get('sensorPosX'))
+                self._set(sensor, 'sensorPosY', params['sensor']['pushbroom'][n].get('sensorPosY'))
+                self._set(sensor, 'sensorPosZ', params['sensor']['pushbroom'][n].get('sensorPosZ'))
 
         maket_module_products = et.SubElement(dart_product, 'maketModuleProducts')
         self._set(maket_module_products, 'MNEProducts', params['products']['DEM'].get('MNEProducts'))
@@ -601,8 +607,10 @@ class Phase(Component):
 
         cover_rate_products_properties = et.SubElement(maket_module_products, 'coverRateProductsProperties')
         self._set(cover_rate_products_properties, 'coverRatePerType', params['products']['DEM'].get('coverRatePerType'))
-        self._set(cover_rate_products_properties, 'totalMaketCoverRate', params['products']['DEM'].get('totalMaketCoverRate'))
-        self._set(cover_rate_products_properties, 'coverRatePrecision', params['products']['DEM'].get('coverRatePrecision'))
+        self._set(cover_rate_products_properties, 'totalMaketCoverRate',
+                  params['products']['DEM'].get('totalMaketCoverRate'))
+        self._set(cover_rate_products_properties, 'coverRatePrecision',
+                  params['products']['DEM'].get('coverRatePrecision'))
 
         lai_products_properties = et.SubElement(maket_module_products, 'LaiProductsProperties')
         self._set(lai_products_properties, 'lai1DProducts', params['products']['DEM'].get('lai1DProducts'))
@@ -713,13 +721,13 @@ class Plots(Component):
 
                         vegetation_geometry = et.SubElement(plot_vegetation_properties, 'VegetationGeometry')
                         self._set(vegetation_geometry, 'stDev',
-                                  self._str_none(params['vegetation'].get('stdDev')[vegetation_id]))
+                                  params['vegetation'].get('stdDev')[vegetation_id])
                         self._check_and_set(vegetation_geometry, 'baseheight', '0')
                         self._set(vegetation_geometry, 'height',
-                                  self._str_none(params['vegetation'].get('height')[vegetation_id]))
+                                  params['vegetation'].get('height')[vegetation_id])
 
                         lai_vegetation = et.SubElement(plot_vegetation_properties, 'LAIVegetation')
-                        self._set(lai_vegetation, 'LAI', self._str_none(params['vegetation'].get('lai')[vegetation_id]))
+                        self._set(lai_vegetation, 'LAI', params['vegetation'].get('lai')[vegetation_id])
 
                         vegetation_optical_property_link = et.SubElement(plot_vegetation_properties,
                                                                          'VegetationOpticalPropertyLink')
@@ -743,9 +751,9 @@ class Plots(Component):
                         self._check_and_set(ground_optical_property_link, 'ident',
                                             params['ground'].get('ident')[litter_id])
                         self._set(ground_optical_property_link, 'indexFctPhase',
-                                  self._str_none(params['ground'].get('indexFctPhase')[litter_id]))
+                                  params['ground'].get('indexFctPhase')[litter_id])
                         self._set(ground_optical_property_link, 'type',
-                                  self._str_none(params['ground'].get('type')[litter_id]))
+                                  params['ground'].get('type')[litter_id])
 
                         ground_thermal_property_link = et.SubElement(plot, 'GroundThermalPropertyLink')
                         self._set(ground_thermal_property_link, 'idTemperature',
@@ -790,7 +798,7 @@ class CoeffDiff(Component):
 
             prospect_external_module = et.SubElement(lambertian_multi, 'ProspectExternalModule')
             self._set(prospect_external_module, 'isFluorescent',
-                      self._str_none(params['lop2d'].get('is_fluorescent')[m]))
+                      params['lop2d'].get('is_fluorescent')[m])
             self._set(prospect_external_module, 'useProspectExternalModule',
                       params['lop2d'].get('useProspectExternalModule'))
 
@@ -837,71 +845,67 @@ class CoeffDiff(Component):
                   params['understory_multi_functions'].get('integrationStepOnPhi'))
         self._set(understory_multi_functions, 'integrationStepOnTheta',
                   params['understory_multi_functions'].get('integrationStepOnTheta'))
-        # self._set(UnderstoryMultiFunctions, 'specularEffects',        #                     self._str_none(params['understory_multi_functions'].get('specularEffects')))
+        # self._set(UnderstoryMultiFunctions, 'specularEffects',        #                     params['understory_multi_functions'].get('specularEffects'))
         # self._check_and_set(UnderstoryMultiFunctions, 'useBunnick','0')
 
-        for m, (model_name, ident, lad) in enumerate(zip(params['lop3d'].get('ModelName'), params['lop3d'].get('ident'),
-                                                         params['lop3d'].get('lad'))):
+        for m in range(len(params['lop3d']['model'])):
+            model = params['lop3d']['model'][m]
+            # (model_name, ident, lad) in enumerate(zip(params['lop3d'].get('ModelName'), params['lop3d'].get('ident'),
+            #                                              params['lop3d'].get('lad'))):
             understory_multi = et.SubElement(understory_multi_functions, 'UnderstoryMulti')
-            self._set(understory_multi, 'dimFoliar', self._str_none(params['lop3d'].get('dimFoliar')[m]))
-            self._set(understory_multi, 'ident', self._str_none(ident))
-            self._set(understory_multi, 'lad', self._str_none(lad))
-            self._check_and_set(understory_multi, 'hasDifferentModelForBottom',
-                                self._str_none('hasDifferentModelForBottom')[m])
-            self._check_and_set(understory_multi, 'thermalHotSpotFactor', self._str_none('thermalHotSpotFactor')[m])
-            self._check_and_set(understory_multi, 'useOpticalFactorMatrix', self._str_none('useOpticalFactorMatrix')[m])
+            self._set(understory_multi, 'dimFoliar', model.get('dimFoliar'))
+            self._set(understory_multi, 'ident', model.get('ident'))
+            self._set(understory_multi, 'lad', model.get('lad'))
+            self._set(understory_multi, 'hasDifferentModelForBottom', model.get('hasDifferentModelForBottom'))
+            self._set(understory_multi, 'thermalHotSpotFactor', model.get('thermalHotSpotFactor'))
+            self._set(understory_multi, 'useOpticalFactorMatrix', model.get('useOpticalFactorMatrix'))
 
             understory_multi_model = et.SubElement(understory_multi, 'UnderstoryMultiModel')
-            self._check_and_set(understory_multi_model, 'ModelName', model_name)
-            self._check_and_set(understory_multi_model, 'databaseName', params['lop3d'].get('databaseName')[m])
-            self._set(understory_multi_model, 'useOpticalFactorMatrix',
-                      self._str_none(params['lop3d'].get('useOpticalFactorMatrix')[m]))
-            self._set(understory_multi_model, 'useSpecular', self._str_none(params['lop3d'].get('useSpecular')[m]))
+            self._set(understory_multi_model, 'ModelName', model.get('ModelName'))
+            self._set(understory_multi_model, 'databaseName', model.get('databaseName'))
+            self._set(understory_multi_model, 'useOpticalFactorMatrix', model.get('useOpticalFactorMatrix'))
+            self._set(understory_multi_model, 'useSpecular', model.get('useSpecular'))
 
             prospect_external_module = et.SubElement(understory_multi_model, 'ProspectExternalModule')
-            self._set(prospect_external_module, 'useProspectExternalModule',
-                      params['lop3d'].get('useProspectExternalModule'))
-            self._set(prospect_external_module, 'isFluorescent',
-                      self._str_none(params['lop3d'].get('isFluorescent')[m]))
+            self._set(prospect_external_module, 'useProspectExternalModule', model.get('useProspectExternalModule'))
+            self._set(prospect_external_module, 'isFluorescent', model.get('isFluorescent'))
 
             understory_node_multiplicative_factor_for_lut = et.SubElement(understory_multi_model,
                                                                           'understoryNodeMultiplicativeFactorForLUT')
             self._set(understory_node_multiplicative_factor_for_lut, 'LeafTransmittanceFactor',
-                      params['lop3d'].get('LeafTransmittanceFactor'))
+                      model.get('LeafTransmittanceFactor'))
             self._set(understory_node_multiplicative_factor_for_lut, 'reflectanceFactor',
-                      params['lop3d'].get('reflectanceFactor'))
+                      model.get('reflectanceFactor'))
             self._set(understory_node_multiplicative_factor_for_lut, 'diffuseTransmittanceAcceleration',
-                      self._str_none(params['lop3d'].get('diffuseTransmittanceAcceleration')[m]))
+                      model.get('diffuseTransmittanceAcceleration'))
             self._set(understory_node_multiplicative_factor_for_lut, 'useSameFactorForAllBands',
-                      self._str_none(params['lop3d'].get('useSameFactorForAllBands')[m]))
-            self._check_and_set(understory_node_multiplicative_factor_for_lut, 'useSameOpticalFactorMatrixForAllBands',
-                                self._str_none(params['lop3d'].get('useSameOpticalFactorMatrixForAllBands')[
-                                                   m]))  # TODO: Implement further input datafile which is needed, when this parameter is set to true!
+                      model.get('useSameFactorForAllBands'))
+            self._set(understory_node_multiplicative_factor_for_lut, 'useSameOpticalFactorMatrixForAllBands',
+                      model.get('useSameOpticalFactorMatrixForAllBands'))  # TODO: Implement further input datafile which is needed, when this parameter is set to true!
 
             understory_multiplicative_factor_for_lut = et.SubElement(understory_node_multiplicative_factor_for_lut,
                                                                      'understoryMultiplicativeFactorForLUT')
             self._set(understory_multiplicative_factor_for_lut, 'LeafTransmittanceFactor',
-                      self._str_none(params['lop3d'].get('LeafTransmittanceFactor')[m]))
+                      model.get('LeafTransmittanceFactor'))
             self._set(understory_multiplicative_factor_for_lut, 'reflectanceFactor',
-                      self._str_none(params['lop3d'].get('reflectanceFactor')[m]))
-            self._check_and_set(understory_multiplicative_factor_for_lut, 'useOpticalFactorMatrix',
-                                self._str_none(params['lop3d'].get('useOpticalFactorMatrix')[
-                                                   m]))  # TODO:implement changes to xml file, when this is set to true!
+                      model.get('reflectanceFactor'))
+            self._set(understory_multiplicative_factor_for_lut, 'useOpticalFactorMatrix',
+                                model.get('useOpticalFactorMatrix'))  # TODO:implement changes to xml file, when this is set to true!
 
             specular_data = et.SubElement(understory_multi, 'SpecularData')
             self._set(specular_data, 'specularDatabaseName',
-                      self._str_none(params['lop3d'].get('specularDatabaseName')[m]))
-            self._set(specular_data, 'specularModelName', self._str_none(params['lop3d'].get('specularModelName')[m]))
+                      model.get('specularDatabaseName'))
+            self._set(specular_data, 'specularModelName', model.get('specularModelName'))
             directional_clumping_index_properties = et.SubElement(understory_multi,
                                                                   'DirectionalClumpingIndexProperties')
             self._set(directional_clumping_index_properties, 'clumpinga',
-                      self._str_none(params['lop3d'].get('clumpinga')[m]))
+                      model.get('clumpinga'))
             self._set(directional_clumping_index_properties, 'clumpingb',
-                      self._str_none(params['lop3d'].get('clumpingb')[m]))
+                      model.get('clumpingb'))
             self._set(directional_clumping_index_properties, 'omegaMax',
-                      self._str_none(params['lop3d'].get('omegaMax')[m]))
+                      model.get('omegaMax'))
             self._set(directional_clumping_index_properties, 'omegaMin',
-                      self._str_none(params['lop3d'].get('omegaMin')[m]))
+                      model.get('omegaMin'))
 
         air_multi_functions = et.SubElement(coeff_diff, 'AirMultiFunctions')
 
@@ -946,25 +950,25 @@ class Object3d(Component):
 
         obj = et.SubElement(object_list, 'Object')
         self._check_and_set(obj, 'file_src', params['path2obj'])
-        self._set(obj, 'hasGroups', self._str_none(params['hasGroups']))
-        self._set(obj, 'hidden', self._str_none(params['hidden']))
-        self._set(obj, 'isDisplayed', self._str_none(params['isDisplayed']))
+        self._set(obj, 'hasGroups', params['hasGroups'])
+        self._set(obj, 'hidden', params['hidden'])
+        self._set(obj, 'isDisplayed', params['isDisplayed'])
         self._check_and_set(obj, 'name', params['name'])
-        self._set(obj, 'num', self._str_none(params['num']))
+        self._set(obj, 'num', params['num'])
         self._check_and_set(obj, 'objectColor', params['objectColor'])
-        self._set(obj, 'objectDEMMode', self._str_none(params['objectDEMMode']))
+        self._set(obj, 'objectDEMMode', params['objectDEMMode'])
 
         geom_prop = et.SubElement(obj, 'GeometricProperties')
 
         pos_prop = et.SubElement(geom_prop, 'PositionProperties')
-        self._set(pos_prop, 'xpos', self._str_none(params.get('location')[0]))
-        self._set(pos_prop, 'ypos', self._str_none(params.get('location')[1]))
-        self._set(pos_prop, 'zpos', self._str_none(params.get('location')[2]))
+        self._set(pos_prop, 'xpos', params.get('location')[0])
+        self._set(pos_prop, 'ypos', params.get('location')[1])
+        self._set(pos_prop, 'zpos', params.get('location')[2])
 
         dimension = et.SubElement(geom_prop, 'Dimension3D')
-        self._set(dimension, 'xdim', self._str_none(params.get('dim')[0]))
-        self._set(dimension, 'ydim', self._str_none(params.get('location')[1]))
-        self._set(dimension, 'zdim', self._str_none(params.get('location')[2]))
+        self._set(dimension, 'xdim', params.get('dim')[0])
+        self._set(dimension, 'ydim', params.get('location')[1])
+        self._set(dimension, 'zdim', params.get('location')[2])
 
         scale_prop = et.SubElement(geom_prop, 'ScaleProperties')
         self._set(scale_prop, 'xScaleDeviation', params['scale'].get('xScaleDeviation'))
@@ -1017,20 +1021,20 @@ class Maket(Component):
 
     def _write575(self, params):
         maket = et.SubElement(self.xml_root, self.COMPONENT_NAME)
-        self._set(maket, 'dartZone', self._str_none(params['dartZone']))
-        self._set(maket, 'exactlyPeriodicScene', self._str_none(params['exactlyPeriodicScene']))
-        self._set(maket, 'useRandomGenerationSeed', self._str_none(params['useRandomGenerationSeed']))
+        self._set(maket, 'dartZone', params['dartZone'])
+        self._set(maket, 'exactlyPeriodicScene', params['exactlyPeriodicScene'])
+        self._set(maket, 'useRandomGenerationSeed', params['useRandomGenerationSeed'])
 
         # scene
         scene = et.SubElement(self.xml_root, 'Scene')
 
         cell_dimensions = et.SubElement(self.xml_root, 'cell_dimensions')
-        self._set(cell_dimensions, 'x', self._str_none(params['voxelDim'][0]))
-        self._set(cell_dimensions, 'z', self._str_none(params['voxelDim'][2]))
+        self._set(cell_dimensions, 'x', params['voxelDim'][0])
+        self._set(cell_dimensions, 'z', params['voxelDim'][2])
 
         scene_dimensions = et.SubElement(self.xml_root, 'SceneDimensions')
-        self._set(scene_dimensions, 'x', self._str_none(params['sceneDim'][1]))
-        self._set(scene_dimensions, 'y', self._str_none(params['sceneDim'][0]))
+        self._set(scene_dimensions, 'x', params['sceneDim'][1])
+        self._set(scene_dimensions, 'y', params['sceneDim'][0])
 
         # ground
         soil = et.SubElement(self.xml_root, 'Soil')
@@ -1047,7 +1051,7 @@ class Maket(Component):
         self._set(thermal_property_link, 'indexTemperature', params['thermal_property'].get('indexTemperature'))
 
         # topography
-        if not self._str_none(params['topography'].get('fileName')):
+        if not params['topography'].get('fileName'):
             topography = et.SubElement(soil, 'Topography')
             self._check_and_set(topography, 'presenceOfTopography', '0')
 
@@ -1059,7 +1063,7 @@ class Maket(Component):
             self._set(topography, 'presenceOfTopography', params['topography'].get('presenceOfTopography'))
 
             topography_properties = et.SubElement(topography, 'TopographyProperties')
-            self._set(topography_properties, 'fileName', self._str_none(params['DEM']['outputFileName']))
+            self._set(topography_properties, 'fileName', params['DEM']['outputFileName'])
 
             DEM_properties = et.SubElement(soil, 'DEM_properties')
             self._set(DEM_properties, 'createTopography', params['DEM'].get('createTopography'))
@@ -1070,15 +1074,15 @@ class Maket(Component):
 
             # TODO: check this, I dont't know what is done here
             DEM_5 = et.SubElement(DEM_generator, 'DEM_5')
-            self._set(DEM_5, 'dataEncoding', self._str_none(params['DEM5']['dataEncoding']))
-            self._set(DEM_5, 'dataFormat', self._str_none(params['DEM5']['dataFormat']))
+            self._set(DEM_5, 'dataEncoding', params['DEM5']['dataEncoding'])
+            self._set(DEM_5, 'dataFormat', params['DEM5']['dataFormat'])
             self._check_and_set(DEM_5, 'fileName', params['DEM5']['fileName'])
 
         # geo-location
         location = et.SubElement(self.xml_root, 'LatLon')
-        self._set(location, 'altitude', self._str_none(params.get('location')[2]))
-        self._set(location, 'latitude', self._str_none(params.get('location')[0]))
-        self._set(location, 'longitude', self._str_none(params.get('location')[1]))
+        self._set(location, 'altitude', params.get('location')[2])
+        self._set(location, 'latitude', params.get('location')[0])
+        self._set(location, 'longitude', params.get('location')[1])
 
 
 class Atmosphere(Component):
