@@ -236,6 +236,7 @@ class Phase(Component):
         self._set(expert_mode_zone, 'accelerationEngine', params['expert_flux_tracking'].get('acceleration_engine'))
         self._set(expert_mode_zone, 'albedoThreshold', params['expert_flux_tracking'].get('albedoThreshold'))
         self._set(expert_mode_zone, 'expertMode', params['expert_flux_tracking'].get('expertMode'))
+        self._set(expert_mode_zone, 'extrapolationMethod', params['expert_flux_tracking'].get('extrapolationMethod'))
         self._set(expert_mode_zone, 'illuminationRepartitionMode',
                   params['expert_flux_tracking'].get('illuminationRepartitionMode'))
         self._set(expert_mode_zone, 'maxNbSceneCrossing', params['expert_flux_tracking'].get('maxNbSceneCrossing'))
@@ -250,9 +251,7 @@ class Phase(Component):
         self._set(expert_mode_zone, 'subFaceBarycenterSubdivision',
                   params['expert_flux_tracking'].get('subFaceBarycenterSubdivision'))
         self._set(expert_mode_zone, 'useExternalScripts', params['expert_flux_tracking'].get('useExternalScripts'))
-        self._check_and_set(expert_mode_zone, 'distanceBetweenIlluminationSubCenters', self._str_none(
-            params['expert_flux_tracking'].get('distanceBetweenIlluminationSubCenters')))
-        self._set(expert_mode_zone, 'distanceBetweenIlluminationSubCenters',
+        self._set(expert_mode_zone, 'subFaceBarycenterEnabled',
                   params['expert_flux_tracking'].get('subFaceBarycenterEnabled'))
         self._check_and_set(expert_mode_zone, 'isInterceptedPowerPerDirectionForSpecularCheck',
                             self._str_none(
@@ -268,9 +267,11 @@ class Phase(Component):
         self._set(expert_mode_zone, 'thermalEmissionSurfaceSubdivision',
                   params['expert_flux_tracking'].get('thermalEmissionSurfaceSubdivision'))
         self._set(expert_mode_zone, 'triangleStorageMode', params['expert_flux_tracking'].get('triangleStorageMode'))
+        self._set(expert_mode_zone, 'distanceBetweenIlluminationSubCenters',
+                  params['expert_flux_tracking'].get('distanceBetweenIlluminationSubCenters'))
 
         # *** Dart Input Parameters ***
-        dart_input_parameters = et.SubElement(phase, 'dart_input_parameters')
+        dart_input_parameters = et.SubElement(phase, 'DartInputParameters')
 
         # flux tracking parameters
         nodefluxtracking = et.SubElement(dart_input_parameters, 'nodefluxtracking')
@@ -282,9 +283,13 @@ class Phase(Component):
         spectral_domain_tir = et.SubElement(dart_input_parameters, 'SpectralDomainTir')
         self._set(spectral_domain_tir, 'temperatureMode', params['spectral'].get('temperatureMode'))
 
-        skylTemperature = et.SubElement(spectral_domain_tir, 'skylTemperature')
-        self._set(skylTemperature, 'SKYLForTemperatureAssignation',
-                  params['atmosphere'].get('SKYLForTemperatureAssignation'))
+        skyl_temperature = et.SubElement(spectral_domain_tir, 'skylTemperature')
+        self._set(skyl_temperature, 'SKYLForTemperatureAssignation',
+                  params['temperature'].get('SKYLForTemperatureAssignation'))
+        self._set(skyl_temperature, 'distanceBetweenIlluminationSubCenters',
+                  params['temperature'].get('distanceBetweenIlluminationSubCenters'))
+        self._set(skyl_temperature, 'histogramThreshold',
+                  params['temperature'].get('histogramThreshold'))
 
         # spectral intervals
         spectral_intervals = et.SubElement(dart_input_parameters, 'SpectralIntervals')
@@ -302,7 +307,7 @@ class Phase(Component):
         # atmosphere brightness temperature
         temperature_atmosphere = et.SubElement(dart_input_parameters, 'temperatureAtmosphere')
         self._set(temperature_atmosphere, 'atmosphericApparentTemperature',
-                  params['atmosphere'].get('atmosphericApparentTemperature'))
+                  params['temperature'].get('atmosphericApparentTemperature'))
 
         image_side_illumination = et.SubElement(dart_input_parameters, 'ImageSideIllumination')
         self._set(image_side_illumination, 'disableSolarIllumination',
@@ -327,7 +332,7 @@ class Phase(Component):
                   params['irradiance'].get('weightReflectanceParameters'))
 
         weighting = et.SubElement(irradiance_database_node, 'WeightingParameters')
-        self._set(irradiance_database_node, 'sceneAverageTemperatureForPonderation',
+        self._set(weighting, 'sceneAverageTemperatureForPonderation',
                   params['irradiance'].get('sceneAverageTemperatureForPonderation'))
 
         spectral_irradiance = et.SubElement(node_illumination_mode, 'SpectralIrradiance')
@@ -335,11 +340,12 @@ class Phase(Component):
         common_parameters = et.SubElement(spectral_irradiance, 'CommonParameters')
         self._set(common_parameters, 'commonIrradianceCheckBox', params['irradiance'].get('commonIrradianceCheckBox'))
         self._set(common_parameters, 'commonSkylCheckBox', params['irradiance'].get('commonSkylCheckBox'))
+        self._set(common_parameters, 'irraDef', params['irradiance'].get('irraDef'))
 
         spectral_irradiance_value = et.SubElement(spectral_irradiance, 'SpectralIrradianceValue')
         self._set(spectral_irradiance_value, 'Skyl', params['irradiance'].get('Skyl'))
         self._set(spectral_irradiance_value, 'bandNumber', params['irradiance'].get('bandNumber'))
-        self._set(spectral_irradiance_value, 'irradiance', params.get('irradiance'))
+        self._set(spectral_irradiance_value, 'irradiance', params['irradiance'].get('irradiance'))
 
         # *** Dart Products ***
         dart_product = et.SubElement(phase, 'DartProduct')

@@ -41,7 +41,6 @@ output_location ='output'
         subFaceBarycenterEnabled = 1         # ??? TODO: Find out what this does!
         subFaceBarycenterSubdivision = 1         # ??? TODO: Find out what this does!
         useExternalScripts = 0               # ??? TODO: Find out what this does!
-        distanceBetweenIlluminationSubCenters = 0.1 # ??? TODO: Find out what this does! -> could be the replacement of nbSubcenterIllumination...
         isInterceptedPowerPerDirectionForSpecularCheck = 0 # ??? TODO: Find out what this does!
         maxNbSceneCrossing = 1000
         sparseVoxelAcceleration = 1
@@ -59,10 +58,12 @@ output_location ='output'
         temperatureMode = 0
 
     # temperatureAtmosphere
-    [phase.atmosphere]
+    [phase.temperature]
         atmosphericApparentTemperature = 300.0
         SKYLForTemperatureAssignation = 0.0         # skylTemperature
-    
+        histogramThreshold = 5.0
+        distanceBetweenIlluminationSubCenters = 0.1 # ??? TODO: Find out what this does! -> could be the replacement of nbSubcenterIllumination...
+
     # nodefluxtracking
     [phase.flux_tracking]
         gaussSiedelAcceleratingTechnique = 0
@@ -77,6 +78,7 @@ output_location ='output'
     [phase.irradiance]
         illuminationMode = 0                 # 0 = no subscene irradiance, 1 = subscene irradiance
         irradianceMode = 0                   # 0 = Spectral irradiance (database), 1 = Band irradiance (user defined), 2 = Band radiance (input file) - BOA
+        irraDef = 0
         # SpectralIrradiance
         # CommonParameters
         commonIrradianceCheckBox = 1
