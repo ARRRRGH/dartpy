@@ -224,7 +224,7 @@ class Simulation(object):
             if cls is None:
                 raise NotImplementedError('Not all Components are implemented. Use from_simulation to simply' +
                                           ' copy the missing xml files')
-            self.components[comp] = cls(simulation_dir=self.path, version=self.version, **self.component_params[comp])
+            self.components[comp] = cls(simulation_dir=self.path, version=self.version, params=self.component_params[comp])
 
     def to_file(self):
         for component in self.components.values():

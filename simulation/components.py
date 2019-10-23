@@ -34,7 +34,6 @@ class Component(object):
             self.params = params
             self.xml_root = et.Element(ROOT_TAG)
             self.xml_root.set('version', self.version)
-            self._write(self.params, *args, **kwargs)
             self._xml_only = False
         elif type(params) is tuple:
             self.params = None
@@ -88,6 +87,7 @@ class Component(object):
             os.makedirs(inp_path)
 
         if not self._xml_only:
+            self._write(**self.params)
             tree = et.ElementTree(self.xml_root)
 
             if not os.path.exists(inp_path):
