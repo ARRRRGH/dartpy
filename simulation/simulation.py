@@ -73,7 +73,7 @@ class Simulation(object):
         return None in self.components.values()
 
     @classmethod
-    def from_simulation(cls, path, config=None, default_patch=False, simulation_patch=True, xml_patch=False,
+    def from_simulation(cls, path, config=None, default_patch=False, simulation_patch=True, xml_patch=None,
                         copy_xml=None, use_db=None, *args, **kwargs):
         """
         Create a duplicate simulation. Any supplied config is patched to the config in the simulation direct if there is

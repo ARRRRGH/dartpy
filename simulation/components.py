@@ -672,9 +672,9 @@ class Plots(Component):
     def _write575(self, params, land_cover, voxel_size, *args, **kwargs):
         plots = et.SubElement(self.xml_root, self.COMPONENT_NAME)
         self._set(plots, 'isVegetation', params['general'].get('isVegetation'))
-        # self._set(Plots, 'addExtraPlotsTextFile', params['general'].get('addExtraPlotsTextFile'))
+        self._set(plots, 'addExtraPlotsTextFile', params['general'].get('addExtraPlotsTextFile'))
 
-        import_fichier_raster = et.SubElement(self.xml_root, 'ImportationFichierRaster')
+        import_fichier_raster = et.SubElement(plots, 'ImportationFichierRaster')
 
         ground_types = params['general']['ground_types']
 
@@ -865,7 +865,7 @@ class CoeffDiff(Component):
             understory_multi_model = et.SubElement(understory_multi, 'UnderstoryMultiModel')
             self._set(understory_multi_model, 'ModelName', model.get('ModelName'))
             self._set(understory_multi_model, 'databaseName', model.get('databaseName'))
-            self._set(understory_multi_model, 'useOpticalFactorMatrix', model.get('useOpticalFactorMatrix'))
+            self._set(understory_multi_model, 'useMultiplicativeFactorForLUT', model.get('useMultiplicativeFactorForLUT'))
             self._set(understory_multi_model, 'useSpecular', model.get('useSpecular'))
 
             prospect_external_module = et.SubElement(understory_multi_model, 'ProspectExternalModule')
@@ -894,7 +894,7 @@ class CoeffDiff(Component):
             self._set(understory_multiplicative_factor_for_lut, 'useOpticalFactorMatrix',
                                 model.get('useOpticalFactorMatrix'))  # TODO:implement changes to xml file, when this is set to true!
 
-            specular_data = et.SubElement(understory_multi, 'SpecularData')
+            specular_data = et.SubElement(understory_multi_model, 'SpecularData')
             self._set(specular_data, 'specularDatabaseName',
                       model.get('specularDatabaseName'))
             self._set(specular_data, 'specularModelName', model.get('specularModelName'))
@@ -910,6 +910,7 @@ class CoeffDiff(Component):
                       model.get('omegaMin'))
 
         air_multi_functions = et.SubElement(coeff_diff, 'AirMultiFunctions')
+        phase_extern_multi_functions = et.SubElement(coeff_diff, 'PhaseExternMultiFunctions')
 
         temperatures = et.SubElement(coeff_diff, 'Temperatures')
         thermal_function = et.SubElement(temperatures, 'ThermalFunction')
