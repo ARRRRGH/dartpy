@@ -4,7 +4,6 @@ from lxml import etree as et
 import os
 import logging
 from pkg_resources import parse_version
-import utils.general as general
 from shutil import copyfile, copytree
 
 ROOT_TAG = 'DartFile'
@@ -77,6 +76,9 @@ class Component(object):
                     [el.tag for el in list(xml_root)]))
         else:
             return cls(simulation_dir, (xml_root, xml_path), version)
+
+    def patch_to_xml(self, xml_path):
+        utils.general.merge_xmls(self.xml_root, self._read(xml_path))
 
     def to_file(self):
         inp_path = utils.general.create_path(self.simulation_dir, 'input')

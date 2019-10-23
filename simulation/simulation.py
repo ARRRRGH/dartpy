@@ -26,7 +26,7 @@ class Simulation(object):
     Class managing reading, writing and running a DART simulation. This class is meant to be version independent.
     """
 
-    def __init__(self, config, default_config=None, patch=True, land_cover=None, maket=None, no_gen=None,
+    def __init__(self, config, default_config=None, default_patch=True, land_cover=None, maket=None, no_gen=None,
                  version='5.7.5', simulation_name=None, simulation_location=None, dart_path=None, *args, **kwargs):
         """
         Create new simulation from a user specified config file. This config file is patched to a default config file
@@ -40,12 +40,7 @@ class Simulation(object):
         """
         self.default_config = default_config
 
-        if no_gen == 'all':
-            no_gen = list(COMPONENTS.keys())
-        elif no_gen == 'not_implemented':
-            no_gen = [comp for comp in COMPONENTS.keys() if not COMPONENTS[comp].is_implemented()]
-
-        self.non_generated_components = no_gen
+        self.non_generated_components = self._convert_component_kwarg(no_gen)
 
         self.land_cover = land_cover
         self.maket = maket
@@ -65,7 +60,7 @@ class Simulation(object):
         self.component_params = {}
 
         if config is not None:
-            self.config = self._config_to_file(user_config, patch, init_user_config=init_user_config)
+            self.config = self._config_to_file(user_config, default_patch, init_user_config=init_user_config)
             self._split_config()
         else:
             logging.warning('No config was supplied. No components are being generated. You might be copying ' +
@@ -78,7 +73,7 @@ class Simulation(object):
         return None in self.components.values()
 
     @classmethod
-    def from_simulation(cls, path, config=None, default_patch=False, simulation_patch=True,
+    def from_simulation(cls, path, config=None, default_patch=False, simulation_patch=True, xml_patch=False,
                         copy_xml=None, use_db=None, *args, **kwargs):
         """
         Create a duplicate simulation. Any supplied config is patched to the config in the simulation direct if there is
@@ -111,7 +106,13 @@ class Simulation(object):
 
         if os.path.exists(path):
             # generate all components that are not copied
-            sim = cls(config, patch=default_patch, no_gen=copy_xml, *args, **kwargs)
+            sim = cls(config, default_patch=default_patch, no_gen=copy_xml, *args, **kwargs)
+
+            # patch xmls for all components in xml_patch
+            xml_patch = cls._convert_component_kwarg(xml_patch)
+            for comp in xml_patch:
+                sim.components[comp].patch_to_xml(path=utils.general.create_path(path, 'input',
+                                                                                 COMPONENTS[comp].COMPONENT_FILE_NAME))
 
             # copy component xml files
             for comp in sim.non_generated_components:
@@ -121,9 +122,22 @@ class Simulation(object):
             raise Exception('Simulation directory ' + path + ' does not exist.')
         return sim
 
-    def _create_simulation_dir(self, config, simulation_name=None, simulation_location=None, version=None,
-                               dart_path=None,
-                               *args, **kwargs):
+    @staticmethod
+    def _convert_component_kwarg(kwarg):
+        if kwarg is None:
+            return []
+
+        if type(kwarg) is not str:
+            return kwarg
+
+        if kwarg == 'all':
+            kwarg = list(COMPONENTS.keys())
+        elif kwarg == 'not_implemented':
+            kwarg = [comp for comp in COMPONENTS.keys() if not COMPONENTS[comp].is_implemented()]
+
+        return kwarg
+
+    def _create_simulation_dir(self, config, version=None, *args, **kwargs):
         """
         Read user config and create new simulation directory.
         :param user_config:
