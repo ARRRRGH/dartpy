@@ -114,16 +114,16 @@ class Simulation(object):
             # generate all components that are not copied
             sim = cls(config, default_patch=default_patch, no_gen=copy_xml, *args, **kwargs)
 
+            # copy component xml files
+            for comp in sim.non_generated_components:
+                sim.components[comp] = COMPONENTS[comp].from_file(simulation_dir=sim.path, path=path,
+                                                                  version=sim.version)
+
             # patch xmls for all components in xml_patch
             xml_patch = cls._convert_component_kwarg(xml_patch)
             for comp in xml_patch:
                 sim.components[comp].patch_to_xml(xml_path=utils.general.create_path(path, 'input',
                                                                                      COMPONENTS[comp].COMPONENT_FILE_NAME))
-
-            # copy component xml files
-            for comp in sim.non_generated_components:
-                sim.components[comp] = COMPONENTS[comp].from_file(simulation_dir=sim.path, path=path,
-                                                                  version=sim.version)
         else:
             raise Exception('Simulation directory ' + path + ' does not exist.')
         return sim
@@ -212,8 +212,7 @@ class Simulation(object):
         self.component_params['maket'] = {'params': self.config.get('maket')}
         self.component_params['atmosphere'] = {'params': self.config.get('atmosphere')}
         self.component_params['object3d'] = {'params': self.config.get('object3d')}
-        self.component_params['plots'] = {'params': self.config.get('plots'), 'land_cover': self.land_cover,
-                                          'voxel_size': self.config['maket'].get('voxel_size')}
+        self.component_params['plots'] = {'params': self.config.get('plots'), 'land_cover': self.land_cover}
         self.component_params['coeff_diff'] = {'params': self.config.get('coeff_diff')}
 
     def _generate_components(self, ignore=None):
