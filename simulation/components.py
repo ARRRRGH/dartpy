@@ -78,7 +78,7 @@ class Component(object):
             return cls(simulation_dir, (xml_root, xml_path), version)
 
     def patch_to_xml(self, xml_path):
-        utils.general.merge_xmls(self.xml_root, self._read(xml_path))
+        self.xml_root = utils.general.merge_xmls(self._read(xml_path), self.xml_root)
 
     def to_file(self):
         inp_path = utils.general.create_path(self.simulation_dir, 'input')

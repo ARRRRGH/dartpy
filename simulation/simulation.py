@@ -15,8 +15,8 @@ from time import gmtime, strftime
 COMPONENTS = {'atmosphere': cmp.Atmosphere, 'phase': cmp.Phase, 'directions': cmp.Directions, 'plots': cmp.Plots,
               'coeff_diff': cmp.CoeffDiff, 'object3d': cmp.Object3d, 'maket': cmp.Maket, 'inversion': cmp.Inversion,
               'trees': cmp.Trees, 'triangleFile': cmp.TriangleFile, 'urban': cmp.Urban, 'water': cmp.Water}
+
 CONFIG_FILE_NAME = 'config.toml'
-USER_CONFIG_FILE_NAME = 'user_config.toml'
 DEFAULT_CONFIG_FILE_PER_VERSION = {'5.6.0': '../default_params/default560.toml',
                                    '5.7.5': '../default_params/default575.toml'}
 
@@ -39,34 +39,40 @@ class Simulation(object):
         :param kwargs:
         """
         self.default_config = default_config
-
         self.non_generated_components = self._convert_component_kwarg(no_gen)
 
         self.land_cover = land_cover
         self.maket = maket
 
-        init_user_config = {'dart_version': version, 'simulation_name': simulation_name,
-                            'simulation_location': simulation_location, 'dart_path': dart_path}
-
-        # if no user_config is supplied, create minimal user_config for simulation directory instantiation
-        if config is None:
-            user_config = init_user_config
-        else:
-            user_config = Simulation._patch_configs(toml.load(config), init_user_config, ignore=[None])
-
-        self._create_simulation_dir(user_config, *args, **kwargs)
-
         self.components = {}
         self.component_params = {}
 
-        if config is not None:
-            self.config = self._config_to_file(user_config, default_patch, init_user_config=init_user_config)
-            self._split_config()
-        else:
-            logging.warning('No config was supplied. No components are being generated. You might be copying ' +
-                            'them though. In this case ignore this warning.')
-            self.non_generated_components = list(COMPONENTS.keys())
+        init_user_config = {'version': version, 'simulation_name': simulation_name,
+                            'simulation_location': simulation_location, 'dart_path': dart_path}
 
+        self.config = None
+        if config is None:
+            # if no user_config and no default is supplied
+            # create minimal user_config for simulation directory instantiation
+            if not default_patch:
+                self.config = init_user_config
+                self.non_generated_components = list(COMPONENTS.keys())
+                logging.warning('No config nor default was supplied. No components are being generated. '
+                                + 'You might be copying them though. In this case ignore this warning.')
+            else:
+                self.config = self._patch_to_default(init_user_config)
+                self._split_config()
+
+        else:
+            if type(config) is str:
+                config = toml.load(config)
+
+            self.config = Simulation._patch_configs(config, init_user_config, [None])
+            if default_patch:
+                self.config = self._patch_to_default(self.config)
+            self._split_config()
+
+        self._create_simulation_dir(self.config, *args, **kwargs)
         self._generate_components(ignore=self.non_generated_components)
 
     def is_complete(self):
@@ -111,8 +117,8 @@ class Simulation(object):
             # patch xmls for all components in xml_patch
             xml_patch = cls._convert_component_kwarg(xml_patch)
             for comp in xml_patch:
-                sim.components[comp].patch_to_xml(path=utils.general.create_path(path, 'input',
-                                                                                 COMPONENTS[comp].COMPONENT_FILE_NAME))
+                sim.components[comp].patch_to_xml(xml_path=utils.general.create_path(path, 'input',
+                                                                                     COMPONENTS[comp].COMPONENT_FILE_NAME))
 
             # copy component xml files
             for comp in sim.non_generated_components:
@@ -157,10 +163,10 @@ class Simulation(object):
         # General
         self.dart_path = user_config['dart_path']
 
-        if version is not None and parse_version(version) != parse_version(user_config['dart_version']):
+        if version is not None and parse_version(version) != parse_version(user_config['version']):
             raise Exception('Version inconsistency')
         else:
-            self.version = user_config['dart_version']
+            self.version = user_config['version']
 
         # Path
         time = strftime("%Y-%m-%d-%H_%M_%S", gmtime())
@@ -173,36 +179,28 @@ class Simulation(object):
                 'Use from_simulation to reload a simulation.')
         else:
             os.makedirs(self.path)
-            self.user_config_path = utils.general.create_path(self.path, USER_CONFIG_FILE_NAME)
+            self.user_config_path = utils.general.create_path(self.path, CONFIG_FILE_NAME)
             if user_config_path is not None:
                 copyfile(user_config_path, self.user_config_path)
             else:
                 with open(self.user_config_path, 'w+') as f:
                     f.write(toml.dumps(user_config))
 
-    def _config_to_file(self, user_config, patch=True, init_user_config=None, *args, **kwargs):
+    def _patch_to_default(self, user_config):
         if self.default_config is None:
             # get most recent version still before this version
             path_ver = [(path, parse_version(version))
                         for version, path in DEFAULT_CONFIG_FILE_PER_VERSION.items()
-                        if parse_version(version) <= parse_version(self.version)]
+                        if parse_version(version) <= parse_version(user_config['version'])]
             path_ver.sort(key=lambda i: i[1])
             self.default_config = path_ver[-1][0]
 
-        if patch:
-            config = Simulation._patch_configs(toml.load(self.default_config), user_config)
-        else:
-            config = user_config
-
-        with open(utils.general.create_path(self.path, CONFIG_FILE_NAME), 'w+') as f:
-            f.write(toml.dumps(config))
-
-        return config
+        return Simulation._patch_configs(toml.load(self.default_config), user_config)
 
     @staticmethod
     def _patch_configs(src_config, patch_config, ignore=None):
-        valid = src_config.get('dart_version') is None or patch_config.get('dart_version') is None \
-                or src_config['dart_version'] == patch_config['dart_version']
+        valid = src_config.get('version') is None or patch_config.get('version') is None \
+                or src_config['version'] == patch_config['version']
         if valid:
             return utils.general.merge_dicts(src_config, patch_config, ignore=ignore)
         else:

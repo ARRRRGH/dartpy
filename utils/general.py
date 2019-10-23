@@ -2,7 +2,7 @@ import collections
 import six
 import os
 from lxml import etree as et
-
+import xmltodict
 
 def merge_dicts(src_dict, patch_dict, ignore=None):
     """
@@ -80,9 +80,14 @@ class XMLCombiner(object):
                     # Just add it
                     one.append(el)
 
+        return one
+
 
 def merge_xmls(src_xml, patch_xml):
-    return XMLCombiner.combine_element(src_xml, patch_xml)
+    src = xmltodict.parse(et.tostring(src_xml,  method='xml', encoding='utf-8'))
+    patch = xmltodict.parse(et.tostring(patch_xml, method='xml', encoding='utf-8'))
+    patched = merge_dicts(src, patch)
+    return et.fromstring(xmltodict.unparse(patched, pretty=True).encode('utf-8'), parser=et.XMLParser(encoding='utf-8'))
 
 
 def create_path(*args):
