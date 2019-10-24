@@ -26,8 +26,9 @@ class Simulation(object):
     Class managing reading, writing and running a DART simulation. This class is meant to be version independent.
     """
 
-    def __init__(self, config, default_config=None, default_patch=True, land_cover=None, maket=None, no_gen=None,
-                 version='5.7.5', simulation_name=None, simulation_location=None, dart_path=None, *args, **kwargs):
+    def __init__(self, config, default_config=None, default_patch=True, xml_patch=None, land_cover=None, maket=None,
+                 no_gen=None, version='5.7.5', simulation_name=None, simulation_location=None, dart_path=None, *args,
+                 **kwargs):
         """
         Create new simulation from a user specified config file. This config file is patched to a default config file
         that can be supplied. If default_config is None the user config file is patched to a predefined config file. The
@@ -40,6 +41,8 @@ class Simulation(object):
         """
         self.default_config = default_config
         self.non_generated_components = self._convert_component_kwarg(no_gen)
+
+        self.xml_patch = xml_patch
 
         self.land_cover = land_cover
         self.maket = maket
@@ -73,7 +76,7 @@ class Simulation(object):
             self._split_config()
 
         self._create_simulation_dir(self.config, *args, **kwargs)
-        self._generate_components(ignore=self.non_generated_components)
+        self._generate_components(ignore=self.non_generated_components, xml_patch=self.xml_patch)
 
     def is_complete(self):
         return None in self.components.values()
@@ -102,31 +105,40 @@ class Simulation(object):
         if not user_config_valid and config is not None:
             raise Exception('config file path does not exist')
 
+        simulation_patch_valid = simulation_patch  and os.path.exists(simulation_config_path)
+
         # if there is a config_file in the simulation directory and a user config, the configs are patched
-        if simulation_patch and user_config_valid and os.path.exists(simulation_config_path):
+        if simulation_patch_valid and user_config_valid:
             config = Simulation._patch_configs(toml.load(simulation_config_path), toml.load(config))
 
         # if there is no user config but a config in the simulation directory
-        elif not user_config_valid and os.path.exists(simulation_config_path):
+        elif simulation_patch_valid and not user_config_valid:
             config = simulation_config_path
 
         if os.path.exists(path):
+            # generate valid xml_patch_path input
+            xml_patch = cls._convert_component_to_path(xml_patch, path)
+
             # generate all components that are not copied
-            sim = cls(config, default_patch=default_patch, no_gen=copy_xml, *args, **kwargs)
+            sim = cls(config, default_patch=default_patch, no_gen=copy_xml, xml_patch=xml_patch, *args, **kwargs)
 
             # copy component xml files
             for comp in sim.non_generated_components:
-                sim.components[comp] = COMPONENTS[comp].from_file(simulation_dir=sim.path, path=path,
-                                                                  version=sim.version)
+                sim.components[comp] = COMPONENTS[comp].from_simulation(simulation_dir=sim.path, path=path,
+                                                                        version=sim.version)
 
-            # patch xmls for all components in xml_patch
-            xml_patch = cls._convert_component_kwarg(xml_patch)
-            for comp in xml_patch:
-                sim.components[comp].patch_to_xml(xml_path=utils.general.create_path(path, 'input',
-                                                                                     COMPONENTS[comp].COMPONENT_FILE_NAME))
         else:
             raise Exception('Simulation directory ' + path + ' does not exist.')
         return sim
+
+    @classmethod
+    def _convert_component_to_path(cls, lis, simulation_dir_path):
+        lis = cls._convert_component_kwarg(lis)
+
+        for i, l in enumerate(lis):
+            if type(l) is str and l in COMPONENTS.keys():
+                lis[i] = (l, utils.general.create_path(simulation_dir_path, 'input', COMPONENTS[l].COMPONENT_FILE_NAME))
+        return lis
 
     @staticmethod
     def _convert_component_kwarg(kwarg):
@@ -215,7 +227,12 @@ class Simulation(object):
         self.component_params['plots'] = {'params': self.config.get('plots'), 'land_cover': self.land_cover}
         self.component_params['coeff_diff'] = {'params': self.config.get('coeff_diff')}
 
-    def _generate_components(self, ignore=None):
+    def _generate_components(self, ignore=None, xml_patch=None):
+        if xml_patch is None:
+            xml_patch = {}
+        else:
+            xml_patch = dict(xml_patch)
+
         for comp, cls in COMPONENTS.items():
             if ignore is not None and comp in ignore:
                 continue
@@ -223,7 +240,9 @@ class Simulation(object):
             if cls is None:
                 raise NotImplementedError('Not all Components are implemented. Use from_simulation to simply' +
                                           ' copy the missing xml files')
-            self.components[comp] = cls(simulation_dir=self.path, version=self.version, params=self.component_params[comp])
+
+            self.components[comp] = cls(simulation_dir=self.path, version=self.version,
+                                        params=self.component_params[comp], xml_patch=xml_patch.get(comp))
 
     def to_file(self):
         for component in self.components.values():

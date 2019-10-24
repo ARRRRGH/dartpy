@@ -6,6 +6,9 @@ import logging
 from pkg_resources import parse_version
 from shutil import copyfile, copytree
 
+from functools import reduce
+import operator
+
 ROOT_TAG = 'DartFile'
 
 
@@ -17,11 +20,11 @@ class Component(object):
     COMPONENT_NAME = None
     IMPLEMENTED_WRITE_VERSION = []
 
-    def __init__(self, simulation_dir, params, version, *args, **kwargs):
+    def __init__(self, simulation_dir, params, version, xml_patch_path=None, *args, **kwargs):
         """
-        Create a component from a complete params dict. The default config files in ../default_params implicitly define
-        the form of the params dict for each version and each component. Normally, params is patched to a default file
-        in the class Simulation.
+        Create a component from a params dict. The default config files in ../default_params implicitly define
+        the form of the params dict for each version and each component. Params may not be complete in which case
+
 
         :param simulation_dir:
         :param params:
@@ -29,6 +32,7 @@ class Component(object):
         """
         self.simulation_dir = simulation_dir
         self.version = version
+        self.xml_patch_path = xml_patch_path
 
         if type(params) is dict:
             self.params = params
@@ -43,6 +47,8 @@ class Component(object):
             raise Exception('params must be a dictionary or a tuple. The tuple form should not be used by the user.')
 
         self._is_to_file = False
+        self._is_patched_to_xml = False
+        self._written_params = None
 
     @classmethod
     def is_implemented(cls):
@@ -53,7 +59,7 @@ class Component(object):
         return version in cls.IMPLEMENTED_WRITE_VERSION
 
     @classmethod
-    def from_file(cls, simulation_dir, path, version, force=False):
+    def from_simulation(cls, simulation_dir, path, version, force=False):
         """
         Create a component from its xml file
         :param simulation_dir:
@@ -66,18 +72,23 @@ class Component(object):
         xml_root = cls._read(xml_path)
 
         # Check if this is a dart file, if its version is correct (if supplied) and whether it is the correct component
-        valid = parse_version(xml_root.get('version')) == parse_version(version) and \
-                cls.COMPONENT_NAME in [el.tag for el in list(xml_root)]
-        if not (valid or force):
-            raise Exception(
-                'Cannot load ' + xml_path + ' since file does not seem to be valid. If you are convinced it is, ' +
-                'use force=True. Found ROOT_TAG ' + str(xml_root.get('version')) + ', tags: ' + str(
-                    [el.tag for el in list(xml_root)]))
+        valid_version = parse_version(xml_root.get('version')) == parse_version(version)
+        valid_file = cls.COMPONENT_NAME in [el.tag for el in list(xml_root)]
+
+        if not ((valid_version and valid_file) or force):
+            if not valid_version:
+                raise Exception(
+                    'Cannot load .' + xml_path + ' since file since there is a version mismatch. If you want to proceed'
+                    + ' use force=True.')
+            if not valid_file:
+                raise Exception(
+                    'Cannot load .' + xml_path + ' since file it is not a valid dart ' + cls.COMPONENT_NAME + ' file.')
         else:
             return cls(simulation_dir, (xml_root, xml_path), version)
 
     def patch_to_xml(self, xml_path):
         self.xml_root = utils.general.merge_xmls(self._read(xml_path), self.xml_root)
+        self._is_patched_to_xml = True
 
     def to_file(self):
         inp_path = utils.general.create_path(self.simulation_dir, 'input')
@@ -105,20 +116,20 @@ class Component(object):
 
     def _write(self, params, *args, **kwargs):
         assert self._check_params(params)
-        # this is to ensure undefined elements are projected to None and do not raise an Error a priori
+
         if parse_version(self.version) >= parse_version('5.7.5'):
             self._write575(params, *args, **kwargs)
         elif parse_version(self.version) >= parse_version('5.6.0'):
             self._write560(params, *args, **kwargs)
 
+        if self.xml_patch_path is not None:
+            self.patch_to_xml()
+
     def _check_and_set(self, element, key, val, check=None):
         if check is not None:
             assert check(key, val)
 
-        if val is not None:
-            element.set(key, val)
-        else:
-            logging.warning('Could not set ' + key + ' with value ' + str(val))
+        element.set(key, val)
 
     @classmethod
     def _copy_from_simulation(cls, copy_xml_path, new_xml_path):
@@ -129,8 +140,29 @@ class Component(object):
             return str(val)
         return None
 
-    def _set(self, el, key, val, check=None):
-        self._check_and_set(el, key, self._str_none(val), check=check)
+    def _set(self, el, key, params_path, check=None):
+        try:
+            self._check_and_set(el, key, self._str_none(self._get(params_path)), check=check)
+        except:
+            logging.warning('Could not set DART parameter ' + key + ' defined as ' +
+            params_path + ' with value ' + str(self._get(params_path)))
+
+    def _get(self, params_path, params=None):
+        if params is None:
+            params = self._written_params
+
+        nodes = params_path.split('.')
+
+        for i, n in enumerate(nodes):
+            try:
+                nodes[i] = int(n)
+            except:
+                pass
+
+        try:
+            return reduce(operator.getitem, nodes, params)
+        except:
+            return None
 
     def _check_params(self, params):
         raise NotImplementedError
@@ -226,6 +258,8 @@ class Phase(Component):
         return True
 
     def _write575(self, params, *args, **kwargs):
+        self._written_params = params
+
         phase = et.SubElement(self.xml_root, self.COMPONENT_NAME)
         self._set(phase, 'calculatorMethod', params.get('calculatorMethod'))
 
@@ -238,35 +272,25 @@ class Phase(Component):
         self._set(expert_mode_zone, 'accelerationEngine', 'expert_flux_tracking.acceleration_engine')
         self._set(expert_mode_zone, 'albedoThreshold', 'expert_flux_tracking.albedoThreshold')
         self._set(expert_mode_zone, 'expertMode', 'expert_flux_tracking.expertMode')
-        self._set(expert_mode_zone, 'illuminationRepartitionMode',
-                  'expert_flux_tracking.illuminationRepartitionMode')
+        self._set(expert_mode_zone, 'illuminationRepartitionMode', 'expert_flux_tracking.illuminationRepartitionMode')
         self._set(expert_mode_zone, 'maxNbSceneCrossing', 'expert_flux_tracking.maxNbSceneCrossing')
-        self._set(expert_mode_zone, 'lightPropagationThreshold',
-                  'expert_flux_tracking.lightPropagationThreshold')
-        self._check_and_set(expert_mode_zone, 'nbRandomPointsPerInteceptionAtmosphere', self._str_none(
-            'expert_flux_tracking.nbRandomPointsPerInteceptionAtmosphere'))
-        self._set(expert_mode_zone, 'nbSubSubcenterTurbidEmission',
-                  'expert_flux_tracking.nbSubSubcenterTurbidEmission')
-        self._set(expert_mode_zone, 'subFaceBarycenterEnabled',
-                  'expert_flux_tracking.subFaceBarycenterEnabled')
-        self._set(expert_mode_zone, 'subFaceBarycenterSubdivision',
-                  'expert_flux_tracking.subFaceBarycenterSubdivision')
+        self._set(expert_mode_zone, 'lightPropagationThreshold', 'expert_flux_tracking.lightPropagationThreshold')
+        self._set(expert_mode_zone, 'nbRandomPointsPerInteceptionAtmosphere',
+                  'expert_flux_tracking.nbRandomPointsPerInteceptionAtmosphere')
+        self._set(expert_mode_zone, 'nbSubSubcenterTurbidEmission', 'expert_flux_tracking.nbSubSubcenterTurbidEmission')
+        self._set(expert_mode_zone, 'subFaceBarycenterEnabled', 'expert_flux_tracking.subFaceBarycenterEnabled')
+        self._set(expert_mode_zone, 'subFaceBarycenterSubdivision', 'expert_flux_tracking.subFaceBarycenterSubdivision')
         self._set(expert_mode_zone, 'useExternalScripts', 'expert_flux_tracking.useExternalScripts')
-        self._set(expert_mode_zone, 'surfaceBarycenterEnabled',
-                  'expert_flux_tracking.surfaceBarycenterEnabled')
-        self._set(expert_mode_zone, 'subFaceBarycenterEnabled',
-                  'expert_flux_tracking.subFaceBarycenterEnabled')
-        self._check_and_set(expert_mode_zone, 'isInterceptedPowerPerDirectionForSpecularCheck',
-                            self._str_none(
-                                'expert_flux_tracking.isInterceptedPowerPerDirectionForSpecularCheck'))
-        self._set(expert_mode_zone, 'nbSubcenterIllumination',
-                  'expert_flux_tracking.nbSubcenterIllumination')
+        self._set(expert_mode_zone, 'surfaceBarycenterEnabled', 'expert_flux_tracking.surfaceBarycenterEnabled')
+        self._set(expert_mode_zone, 'subFaceBarycenterEnabled', 'expert_flux_tracking.subFaceBarycenterEnabled')
+        self._set(expert_mode_zone, 'isInterceptedPowerPerDirectionForSpecularCheck',
+                  'expert_flux_tracking.isInterceptedPowerPerDirectionForSpecularCheck')
+        self._set(expert_mode_zone, 'nbSubcenterIllumination', 'expert_flux_tracking.nbSubcenterIllumination')
         self._set(expert_mode_zone, 'nbTrianglesWithinVoxelAcceleration',
                   'expert_flux_tracking.nbTrianglesWithinVoxelAcceleration')
         self._set(expert_mode_zone, 'nbSubcenterVolume', 'expert_flux_tracking.nbSubcenterVolume')
         self._set(expert_mode_zone, 'nbThreads', 'expert_flux_tracking.nbThreads')
-        self._set(expert_mode_zone, 'sparseVoxelAcceleration',
-                  'expert_flux_tracking.sparseVoxelAcceleration')
+        self._set(expert_mode_zone, 'sparseVoxelAcceleration', 'expert_flux_tracking.sparseVoxelAcceleration')
         self._set(expert_mode_zone, 'thermalEmissionSurfaceSubdivision',
                   'expert_flux_tracking.thermalEmissionSurfaceSubdivision')
         self._set(expert_mode_zone, 'triangleStorageMode', 'expert_flux_tracking.triangleStorageMode')
@@ -287,25 +311,21 @@ class Phase(Component):
         self._set(spectral_domain_tir, 'temperatureMode', 'spectral.temperatureMode')
 
         skyl_temperature = et.SubElement(spectral_domain_tir, 'skylTemperature')
-        self._set(skyl_temperature, 'SKYLForTemperatureAssignation',
-                  'temperature.SKYLForTemperatureAssignation')
+        self._set(skyl_temperature, 'SKYLForTemperatureAssignation', 'temperature.SKYLForTemperatureAssignation')
         self._set(skyl_temperature, 'distanceBetweenIlluminationSubCenters',
                   'temperature.distanceBetweenIlluminationSubCenters')
-        self._set(skyl_temperature, 'histogramThreshold',
-                  'temperature.histogramThreshold')
+        self._set(skyl_temperature, 'histogramThreshold', 'temperature.histogramThreshold')
 
         # spectral intervals
         spectral_intervals = et.SubElement(dart_input_parameters, 'SpectralIntervals')
 
-        for n in range(len('spectral.meanLambda')):
-            spectral_intervals_properties = et.SubElement(spectral_intervals, 'SpectralIntervalsProperties')
-            self._set(spectral_intervals_properties, 'bandNumber', n)
-            self._set(spectral_intervals_properties, 'deltaLambda',
-                      'spectral.deltaLambda'[n])
-            self._set(spectral_intervals_properties, 'meanLambda',
-                      'spectral.meanLambda'[n])
-            self._set(spectral_intervals_properties, 'spectralDartMode',
-                      'spectral.spectralDartMode'[n])
+        if self._get('spectral.meanLambda') is not None:
+            for n in range(len(self._get('spectral.meanLambda'))):
+                spectral_intervals_properties = et.SubElement(spectral_intervals, 'SpectralIntervalsProperties')
+                self._set(spectral_intervals_properties, 'bandNumber', n)
+                self._set(spectral_intervals_properties, 'deltaLambda', 'spectral.deltaLambda.' + str(n))
+                self._set(spectral_intervals_properties, 'meanLambda', 'spectral.meanLambda.' + str(n))
+                self._set(spectral_intervals_properties, 'spectralDartMode', 'spectral.spectralDartMode.' + str(n))
 
         # atmosphere brightness temperature
         temperature_atmosphere = et.SubElement(dart_input_parameters, 'temperatureAtmosphere')
@@ -313,26 +333,21 @@ class Phase(Component):
                   'temperature.atmosphericApparentTemperature')
 
         image_side_illumination = et.SubElement(dart_input_parameters, 'ImageSideIllumination')
-        self._set(image_side_illumination, 'disableSolarIllumination',
-                  'image_illumination.disableSolarIllumination')
-        self._set(image_side_illumination, 'disableThermalEmission',
-                  'image_illumination.disableThermalEmission')
-        self._set(image_side_illumination, 'sideIlluminationEnabled',
-                  'image_illumination.sideIlluminationEnabled')
+        self._set(image_side_illumination, 'disableSolarIllumination', 'image_illumination.disableSolarIllumination')
+        self._set(image_side_illumination, 'disableThermalEmission', 'image_illumination.disableThermalEmission')
+        self._set(image_side_illumination, 'sideIlluminationEnabled', 'image_illumination.sideIlluminationEnabled')
 
         # earth scene irradiance
         node_illumination_mode = et.SubElement(dart_input_parameters, 'nodeIlluminationMode')
-        #self._set(node_illumination_mode, 'illuminationMode', 'irradiance.illuminationMode')
+        # self._set(node_illumination_mode, 'illuminationMode', 'irradiance.illuminationMode')
         self._set(node_illumination_mode, 'irradianceMode', 'irradiance.irradianceMode')
 
         irradiance_database_node = et.SubElement(node_illumination_mode, 'irradianceDatabaseNode')
         self._set(irradiance_database_node, 'databaseName', 'irradiance.databaseName')
         self._set(irradiance_database_node, 'irradianceColumn', 'irradiance.irradianceColumn')
         self._set(irradiance_database_node, 'irradianceTable', 'irradiance.irradianceTable')
-        self._set(irradiance_database_node, 'weightAtmosphereParameters',
-                  'irradiance.weightAtmosphereParameters')
-        self._set(irradiance_database_node, 'weightReflectanceParameters',
-                  'irradiance.weightReflectanceParameters')
+        self._set(irradiance_database_node, 'weightAtmosphereParameters', 'irradiance.weightAtmosphereParameters')
+        self._set(irradiance_database_node, 'weightReflectanceParameters', 'irradiance.weightReflectanceParameters')
 
         weighting = et.SubElement(irradiance_database_node, 'WeightingParameters')
         self._set(weighting, 'sceneAverageTemperatureForPonderation',
@@ -356,12 +371,10 @@ class Phase(Component):
         dart_module_products = et.SubElement(dart_product, 'dartModuleProducts')
         common_products = et.SubElement(dart_module_products, 'CommonProducts')
         self._set(common_products, 'polarizationProducts', 'products.common.polarizationProducts')
-        self._set(common_products, 'radiativeBudgetProducts',
-                  'products.common.radiativeBudgetProducts')
+        self._set(common_products, 'radiativeBudgetProducts', 'products.common.radiativeBudgetProducts')
 
         flux_tracking_products = et.SubElement(dart_module_products, 'FluxTrackingModeProducts')
-        self._set(flux_tracking_products, 'allIterationsProducts',
-                  'products.flux_tracking.allIterationsProducts')
+        self._set(flux_tracking_products, 'allIterationsProducts', 'products.flux_tracking.allIterationsProducts')
         self._set(flux_tracking_products, 'brfProducts', 'products.flux_tracking.brfProducts')
         # self._set(dart_module_products, 'lidarImageProducts',        #                     'products.lidarImageProducts')
         # self._set(dart_module_products, 'lidarProducts',        #                     'products.lidarProducts')
@@ -371,8 +384,7 @@ class Phase(Component):
 
         # TODO: find out what this is
         radiative_budget_properties = et.SubElement(common_products, 'radiativeBudgetProperties')
-        self._set(radiative_budget_properties, 'binaryFormat',
-                  'products.radiative_budget_properties.binaryFormat')
+        self._set(radiative_budget_properties, 'binaryFormat', 'products.radiative_budget_properties.binaryFormat')
         self._set(radiative_budget_properties, 'budget3DParSurface',
                   'products.radiative_budget_properties.budget3DParSurface')
         self._set(radiative_budget_properties, 'budget3DParType',
@@ -381,19 +393,13 @@ class Phase(Component):
                   'products.radiative_budget_properties.budgetTotalParType')
         self._set(radiative_budget_properties, 'budgetUnitModeR',
                   'products.radiative_budget_properties.budgetUnitModeR')
-        self._set(radiative_budget_properties, 'extrapolation',
-                  'products.radiative_budget_properties.extrapolation')
-        self._check_and_set(radiative_budget_properties,
-                            'fIRfARfSRfINTR1DProducts',
-                            self._str_none(
-                                'products.radiative_budget_properties.fIRfARfSRfINTR1DProducts'))
-        self._check_and_set(radiative_budget_properties,
-                            'fIRfARfSRfINTR3DProducts',
-                            self._str_none(
-                                'products.radiative_budget_properties.fIRfARfSRfINTR3DProducts'))
-        self._check_and_set(radiative_budget_properties, 'fIRfARfSRfINTR2DProducts',
-                            self._str_none(
-                                'products.radiative_budget_properties.fIRfARfSRfINTR2DProducts'))
+        self._set(radiative_budget_properties, 'extrapolation', 'products.radiative_budget_properties.extrapolation')
+        self._set(radiative_budget_properties, 'fIRfARfSRfINTR1DProducts',
+                  'products.radiative_budget_properties.fIRfARfSRfINTR1DProducts')
+        self._set(radiative_budget_properties, 'fIRfARfSRfINTR3DProducts',
+                  'products.radiative_budget_properties.fIRfARfSRfINTR3DProducts')
+        self._set(radiative_budget_properties, 'fIRfARfSRfINTR2DProducts',
+                  'products.radiative_budget_properties.fIRfARfSRfINTR2DProducts')
         self._set(radiative_budget_properties, 'budget2DParType',
                   'products.radiative_budget_properties.budget2DParType')
 
@@ -401,95 +407,61 @@ class Phase(Component):
         cell_components = et.SubElement(components, 'CellComponents')
         element_components = et.SubElement(cell_components, 'ElementComponents')
 
-        self._check_and_set(components, 'absorbed',
-                            self._str_none(
-                                'products.radiative_budget_properties.cell_components.absorbed'))
-        self._check_and_set(components, 'backEntry',
-                            self._str_none(
-                                'products.radiative_budget_properties.cell_components.backEntry'))
+        self._set(components, 'absorbed', 'products.radiative_budget_properties.cell_components.absorbed')
+        self._set(components, 'backEntry', 'products.radiative_budget_properties.cell_components.backEntry')
 
-        self._check_and_set(components, 'backExit',
-                            self._str_none(
-                                'products.radiative_budget_properties.cell_components.backExit'))
-        self._check_and_set(components, 'bottomEntry',
-                            self._str_none(
-                                'products.radiative_budget_properties.cell_components'.get(
-                                    'bottomEntry')))
+        self._set(components, 'backExit', 'products.radiative_budget_properties.cell_components.backExit')
+        self._set(components, 'bottomEntry', 'products.radiative_budget_properties.cell_components.bottomEntry')
 
-        self._check_and_set(components, 'bottomExit', self._str_none(
-            'products.radiative_budget_properties.cell_components.bottomExit'))
-        self._check_and_set(components, 'emitted', self._str_none(
-            'products.radiative_budget_properties.cell_components.emitted'))
+        self._set(components, 'bottomExit', 'products.radiative_budget_properties.cell_components.bottomExit')
+        self._set(components, 'emitted', 'products.radiative_budget_properties.cell_components.emitted')
 
-        self._check_and_set(components, 'frontEntry', self._str_none(
-            'products.radiative_budget_properties.cell_components.frontEntry'))
-        self._check_and_set(components, 'frontExit', self._str_none(
-            'products.radiative_budget_properties.cell_components.frontExit'))
+        self._set(components, 'frontEntry', 'products.radiative_budget_properties.cell_components.frontEntry')
+        self._set(components, 'frontExit', 'products.radiative_budget_properties.cell_components.frontExit')
 
-        self._check_and_set(components, 'intercepted', self._str_none(
-            'products.radiative_budget_properties.cell_components.intercepted'))
-        self._check_and_set(components, 'leftEntry', self._str_none(
-            'products.radiative_budget_properties.cell_components.leftEntry'))
+        self._set(components, 'intercepted', 'products.radiative_budget_properties.cell_components.intercepted')
+        self._set(components, 'leftEntry', 'products.radiative_budget_properties.cell_components.leftEntry')
 
-        self._check_and_set(components, 'leftExit', self._str_none(
-            'products.radiative_budget_properties.cell_components.leftExit'))
-        self._check_and_set(components, 'rightEntry', self._str_none(
-            'products.radiative_budget_properties.cell_components.rightEntry'))
+        self._set(components, 'leftExit', 'products.radiative_budget_properties.cell_components.leftExit')
+        self._set(components, 'rightEntry', 'products.radiative_budget_properties.cell_components.rightEntry')
 
-        self._check_and_set(components, 'rightExit', self._str_none(
-            'products.radiative_budget_properties.cell_components.rightExit'))
-        self._check_and_set(components, 'scattered', self._str_none(
-            'products.radiative_budget_properties.cell_components.scattered'))
-        self._check_and_set(components, 'topEntry', self._str_none(
-            'products.radiative_budget_properties.cell_components.topEntry'))
+        self._set(components, 'rightExit', 'products.radiative_budget_properties.cell_components.rightExit')
+        self._set(components, 'scattered', 'products.radiative_budget_properties.cell_components.scattered')
+        self._set(components, 'topEntry', 'products.radiative_budget_properties.cell_components.topEntry')
 
-        self._check_and_set(components, 'topExit', self._str_none(
-            'products.radiative_budget_properties.cell_components.topExit'))
-        self._check_and_set(components, 'totalEntry', self._str_none(
-            'products.radiative_budget_properties.cell_components.totalEntry'))
-        self._check_and_set(components, 'totalExit', self._str_none(
-            'products.radiative_budget_properties.cell_components.totalExit'))
+        self._set(components, 'topExit', 'products.radiative_budget_properties.cell_components.topExit')
+        self._set(components, 'totalEntry', 'products.radiative_budget_properties.cell_components.totalEntry')
+        self._set(components, 'totalExit', 'products.radiative_budget_properties.cell_components.totalExit')
 
-        self._check_and_set(components, 'absorbed', self._str_none(
-            'products.radiative_budget_properties.element_components.absorbed'))
-        self._check_and_set(components, 'emitted', self._str_none(
-            'products.radiative_budget_properties.element_components.emitted'))
+        self._set(components, 'absorbed', 'products.radiative_budget_properties.element_components.absorbed')
+        self._set(components, 'emitted', 'products.radiative_budget_properties.element_components.emitted')
 
-        self._check_and_set(components, 'intercepted', self._str_none(
-            'products.radiative_budget_properties.element_components.intercepted'))
-        self._check_and_set(components, 'scattered', self._str_none(
-            'products.radiative_budget_properties.element_components.scattered'))
+        self._set(components, 'intercepted', 'products.radiative_budget_properties.element_components.intercepted')
+        self._set(components, 'scattered', 'products.radiative_budget_properties.element_components.scattered')
 
         brf_products_properties = et.SubElement(flux_tracking_products, 'BrfProductsProperties')
         self._set(brf_products_properties, 'brfProduct', 'products.brf_properties.brfProduct')
         self._set(brf_products_properties, 'extrapolation', 'products.brf_properties.extrapolation')
-        self._set(brf_products_properties, 'horizontalOversampling',
-                  'products.brf_properties.horizontalOversampling')
-        # self._check_and_set(BrfProductsProperties,'ifSensorImageSimulation', '0')
+        self._set(brf_products_properties, 'horizontalOversampling', 'products.brf_properties.horizontalOversampling')
+        # self._set(BrfProductsProperties,'ifSensorImageSimulation', '0')
         self._set(brf_products_properties, 'image', 'products.brf_properties.image')
-        self._set(brf_products_properties, 'luminanceProducts',
-                  'products.brf_properties.luminanceProducts')
-        self._set(brf_products_properties, 'maximalThetaImages',
-                  'products.brf_properties.maximalThetaImages')
+        self._set(brf_products_properties, 'luminanceProducts', 'products.brf_properties.luminanceProducts')
+        self._set(brf_products_properties, 'maximalThetaImages', 'products.brf_properties.maximalThetaImages')
         self._set(brf_products_properties, 'nb_scene', 'products.brf_properties.nb_scene')
-        # self._check_and_set(BrfProductsProperties,'outputHapkeFile', '0')
+        # self._set(BrfProductsProperties,'outputHapkeFile', '0')
         self._set(brf_products_properties, 'projection', 'products.brf_properties.projection')
-        self._set(brf_products_properties, 'sensorOversampling',
-                  'products.brf_properties.sensorOversampling')
-        self._set(brf_products_properties, 'sensorPlaneprojection',
-                  'products.brf_properties.sensorPlaneprojection')
-        self._set(brf_products_properties, 'transmittanceImages',
-                  'products.brf_properties.transmittanceImages')
+        self._set(brf_products_properties, 'sensorOversampling', 'products.brf_properties.sensorOversampling')
+        self._set(brf_products_properties, 'sensorPlaneprojection', 'products.brf_properties.sensorPlaneprojection')
+        self._set(brf_products_properties, 'transmittanceImages', 'products.brf_properties.transmittanceImages')
         self._set(brf_products_properties, 'pixelToSceneCorrespondences',
                   'products.brf_properties.pixelToSceneCorrespondences')
-        self._set(brf_products_properties, 'centralizedBrfProduct',
-                  'products.brf_properties.transmittanceImages')
+        self._set(brf_products_properties, 'centralizedBrfProduct', 'products.brf_properties.transmittanceImages')
 
-        if 'products.brf_properties.image' == 1:
+        if self._get('products.brf_properties.image') == 1:
             expert_mode_zone_etalement = et.SubElement(brf_products_properties, 'ExpertModeZone_Etalement')
             self._set(expert_mode_zone_etalement, 'etalement', 'products.brf_properties.etalement')
 
-            if 'products.brf_properties.sensorPlaneprojection' == 1:
+            if self._get('products.brf_properties.sensorPlaneprojection') == 1:
                 expert_mode_zone_projection = et.SubElement(expert_mode_zone_etalement, 'ExpertModeZone_Projection')
                 self._set(expert_mode_zone_projection, 'keepNonProjectedImage',
                           'products.brf_properties.keepNonProjectedImage')
@@ -498,11 +470,10 @@ class Phase(Component):
                 self._set(expert_mode_zone_per_type, 'generate_PerTypeProduct',
                           'products.brf_properties.generate_PerTypeProduct')
 
-            if 'products.brf_properties.projection' == 1:
+            if self._get('products.brf_properties.projection') == 1:
                 expert_mode_zone_mask_projection = et.SubElement(brf_products_properties,
                                                                  'ExpertModeZone_maskProjection')
-                self._set(expert_mode_zone_mask_projection, 'albedoImages',
-                          'products.brf_properties.albedoImages')
+                self._set(expert_mode_zone_mask_projection, 'albedoImages', 'products.brf_properties.albedoImages')
 
         order1_options = et.SubElement(flux_tracking_products, 'Order1Options')
         self._set(order1_options, 'images_only', 'products.brf_properties.images_only')
@@ -515,86 +486,84 @@ class Phase(Component):
             sensors_importation = et.SubElement(sensor_image_simulation, 'SensorsImportation')
             self._set(sensors_importation, 'fileN', 'sensor.fileN')
 
-        if 'sensor.pinhole' is not None:
-            for n in range(len('sensor.pinhole')):
+        if self._get('sensor.pinhole') is not None:
+            for n in range(len(self._get('sensor.pinhole'))):
                 pinhole = et.SubElement(sensor_image_simulation, 'Pinhole')
-                self._set(pinhole, 'defCameraOrientation', 'sensor.pinhole'[n].get('defCameraOrientation'))
-                self._set(pinhole, 'setImageSize', 'sensor.pinhole'[n].get('setImageSize'))
-                self._set(pinhole, 'ifFishEye', 'sensor.pinhole'[n].get('ifFishEye'))
+                self._set(pinhole, 'defCameraOrientation', 'sensor.pinhole.' + str(n) + '.defCameraOrientation')
+                self._set(pinhole, 'setImageSize', 'sensor.pinhole.' + str(n) + '.setImageSize')
+                self._set(pinhole, 'ifFishEye', 'sensor.pinhole.' + str(n) + '.ifFishEye')
 
                 sensor = et.SubElement(pinhole, 'Sensor')
-                self._set(sensor, 'sensorPosX', 'sensor.pinhole'[n].get('sensorPosX'))
-                self._set(sensor, 'sensorPosY', 'sensor.pinhole'[n].get('sensorPosY'))
-                self._set(sensor, 'sensorPosZ', 'sensor.pinhole'[n].get('sensorPosZ'))
+                self._set(sensor, 'sensorPosX', 'sensor.pinhole.' + str(n) + '.sensorPosX')
+                self._set(sensor, 'sensorPosY', 'sensor.pinhole.' + str(n) + '.sensorPosY')
+                self._set(sensor, 'sensorPosZ', 'sensor.pinhole.' + str(n) + '.sensorPosZ')
 
                 orientation_def = et.SubElement(pinhole, 'OrientationDef')
-                self._set(pinhole, 'orientDefType', 'sensor.pinhole'[n].get('orientDefType'))
-                if 'sensor.pinhole'[n].get('orientDefType') == 0:
+                self._set(pinhole, 'orientDefType', 'sensor.pinhole.' + str(n) + '.orientDefType')
+                if self._get('sensor.pinhole.' + str(n) + '.orientDefType') == 0:
                     camera_orientation = et.SubElement(orientation_def, 'CameraOrientation')
                     self._set(camera_orientation, 'cameraRotation',
-                              'sensor.pinhole'[n]['intrinsic_ZYZ.cameraRotation'])
-                    self._set(camera_orientation, 'cameraPhi',
-                              'sensor.pinhole'[n]['intrinsic_ZYZ.cameraPhi'])
+                              'sensor.pinhole.' + str(n) + '.intrinsic_ZYZ.cameraRotation')
+                    self._set(camera_orientation, 'cameraPhi', 'sensor.pinhole.' + str(n) + '.intrinsic_ZYZ.cameraPhi')
                     self._set(camera_orientation, 'cameraTheta',
-                              'sensor.pinhole'[n]['intrinsic_ZYZ.cameraTheta'])
-                elif 'sensor.pinhole'[n].get('orientDefType') == 1:
+                              'sensor.pinhole.' + str(n) + '.intrinsic_ZYZ.cameraTheta')
+
+                elif self._get('sensor.pinhole.' + str(n) + '.orientDefType') == 1:
                     camera_orient_ypr = et.SubElement(orientation_def, 'CameraOrientYPR')
-                    self._set(camera_orient_ypr, 'pitch', 'sensor.pinhole'[n]['tait_bryan.pitch'])
-                    self._set(camera_orient_ypr, 'roll', 'sensor.pinhole'[n]['tait_bryan.roll'])
-                    self._set(camera_orient_ypr, 'rotDefBT', 'sensor.pinhole'[n]['tait_bryan.rotDefBT'])
-                    self._set(camera_orient_ypr, 'yaw', 'sensor.pinhole'[n]['tait_bryan.yaw'])
+                    self._set(camera_orient_ypr, 'pitch', 'sensor.pinhole.' + str(n) + '.tait_bryan.pitch')
+                    self._set(camera_orient_ypr, 'roll', 'sensor.pinhole.' + str(n) + '.tait_bryan.roll')
+                    self._set(camera_orient_ypr, 'rotDefBT', 'sensor.pinhole.' + str(n) + '.tait_bryan.rotDefBT')
+                    self._set(camera_orient_ypr, 'yaw', 'sensor.pinhole.' + str(n) + '.tait_bryan.yaw')
                 else:
                     raise Exception('Invalid Camera Orientation Definition')
 
                 cam_image_FOV = et.SubElement(pinhole, 'CamImageFOV')
-                self._set(cam_image_FOV, 'defNbPixels', 'sensor.pinhole'[n].get('defNbPixels'))
-                self._set(cam_image_FOV, 'definitionFOV', 'sensor.pinhole'[n].get('definitionFOV'))
+                self._set(cam_image_FOV, 'defNbPixels', 'sensor.pinhole.' + str(n) + '.defNbPixels')
+                self._set(cam_image_FOV, 'definitionFOV', 'sensor.pinhole.' + str(n) + '.definitionFOV')
 
-                if 'sensor.pinhole'[n].get('defNbPixels') == 1:
+                if self._get('sensor.pinhole.' + str(n) + '.defNbPixels') == 1:
                     cam_nb_pixels = et.SubElement(cam_image_FOV, 'NbPixels')
-                    self._set(cam_nb_pixels, 'nbPixelsX', 'sensor.pinhole'[n].get('nbPixelsX'))
-                    self._set(cam_nb_pixels, 'nbPixelsX', 'sensor.pinhole'[n].get('nbPixelsY'))
+                    self._set(cam_nb_pixels, 'nbPixelsX', 'sensor.pinhole.' + str(n) + '.nbPixelsX')
+                    self._set(cam_nb_pixels, 'nbPixelsX', 'sensor.pinhole.' + str(n) + '.nbPixelsY')
 
-                if 'sensor.pinhole'[n].get('definitionFOV') == 0:
+                if self._get('sensor.pinhole.' + str(n) + '.definitionFOV') == 0:
                     cam_image_dim = et.SubElement(cam_image_FOV, 'CamImageDim')
-                    self._set(cam_image_dim, 'sizeImageX', 'sensor.pinhole'[n]['fov.sizeImageX'])
-                    self._set(cam_image_dim, 'nbPixelsX', 'sensor.pinhole'[n]['fov.sizeImageY'])
+                    self._set(cam_image_dim, 'sizeImageX', 'sensor.pinhole.' + str(n) + '.fov.sizeImageX')
+                    self._set(cam_image_dim, 'nbPixelsX', 'sensor.pinhole.' + str(n) + '.fov.sizeImageY')
 
-                elif 'sensor.pinhole'[n].get('definitionFOV') == 1:
+                elif self._get('sensor.pinhole.' + str(n) + '.definitionFOV') == 1:
                     cam_image_aov = et.SubElement(cam_image_FOV, 'CamImageAOV')
-                    self._set(cam_image_aov, 'aovX', 'sensor.pinhole'[n]['aov.x'])
-                    self._set(cam_image_aov, 'aovY', 'sensor.pinhole'[n]['aov.y'])
+                    self._set(cam_image_aov, 'aovX', 'sensor.pinhole.' + str(n) + '.aov.x')
+                    self._set(cam_image_aov, 'aovY', 'sensor.pinhole.' + str(n) + '.aov.y')
 
-        if 'sensor.pushbroom' is not None:
-            for n in range(len('sensor.pushbroom')):
+        if self._get('sensor.pushbroom') is not None:
+            for n in range(len(self._get('sensor.pushbroom'))):
                 pushbroom = et.SubElement(sensor_image_simulation, 'Pushbroom')
-                self._set(pushbroom, 'importThetaPhi', 'sensor.pushbroom'[n].get('is_import'))
+                self._set(pushbroom, 'importThetaPhi', 'sensor.pushbroom.' + str(n) + '.is_import')
 
-                if 'sensor.pushbroom'[n].get('is_import') == 1:
+                if self._get('sensor.pushbroom.' + str(n) + '.is_import') == 1:
                     importation = et.SubElement(pushbroom, 'Importation')
-                    self._set(importation, 'sensorAltitude', 'sensor.pushbroom.import'[n].get('altitude'))
-                    self._set(importation, 'offsetX', 'sensor.pushbroom'[n]['import.offsetX'])
-                    self._set(importation, 'offsetY', 'sensor.pushbroom'[n]['import.offsetY'])
-                    self._set(importation, 'phiFile', 'sensor.pushbroom'[n]['import.phiFile'])
-                    self._set(importation, 'resImage', 'sensor.pushbroom'[n]['import.resImage'])
-                    self._set(importation, 'thetaFile', 'sensor.pushbroom'[n]['import.thetaFile'])
+                    self._set(importation, 'sensorAltitude', 'sensor.pushbroom.import.' + str(n) + '.altitude')
+                    self._set(importation, 'offsetX', 'sensor.pushbroom.' + str(n) + '.import.offsetX')
+                    self._set(importation, 'offsetY', 'sensor.pushbroom.' + str(n) + '.import.offsetY')
+                    self._set(importation, 'phiFile', 'sensor.pushbroom.' + str(n) + '.import.phiFile')
+                    self._set(importation, 'resImage', 'sensor.pushbroom.' + str(n) + '.import.resImage')
+                    self._set(importation, 'thetaFile', 'sensor.pushbroom.' + str(n) + '.import.thetaFile')
 
-                elif 'sensor.pushbroom'[n].get('is_import') == 0:
+                elif self._get('sensor.pushbroom.' + str(n) + '.is_import') == 0:
                     platform = et.SubElement(pushbroom, 'Platform')
-                    self._set(platform, 'pitchLookAngle',
-                              'sensor.pushbroom'[n]['no_import.pitchLookAngle'])
-                    self._set(platform, 'platformAzimuth',
-                              'sensor.pushbroom'[n]['no_import.platformAzimuth'])
+                    self._set(platform, 'pitchLookAngle', 'sensor.pushbroom.' + str(n) + '.no_import.pitchLookAngle')
+                    self._set(platform, 'platformAzimuth', 'sensor.pushbroom.' + str(n) + '.no_import.platformAzimuth')
                     self._set(platform, 'platformDirection',
-                              'sensor.pushbroom'[n]['no_import.platformDirection'])
+                              'sensor.pushbroom.' + str(n) + '.no_import.platformDirection')
 
                 else:
                     raise Exception('Import is not properly defined. Should be 0 or 1.')
 
                 sensor = et.SubElement(pushbroom, 'Sensor')
-                self._set(sensor, 'sensorPosX', 'sensor.pushbroom'[n].get('sensorPosX'))
-                self._set(sensor, 'sensorPosY', 'sensor.pushbroom'[n].get('sensorPosY'))
-                self._set(sensor, 'sensorPosZ', 'sensor.pushbroom'[n].get('sensorPosZ'))
+                self._set(sensor, 'sensorPosX', 'sensor.pushbroom.' + str(n) + '.sensorPosX')
+                self._set(sensor, 'sensorPosY', 'sensor.pushbroom.' + str(n) + '.sensorPosY')
+                self._set(sensor, 'sensorPosZ', 'sensor.pushbroom.' + str(n) + '.sensorPosZ')
 
         maket_module_products = et.SubElement(dart_product, 'maketModuleProducts')
         self._set(maket_module_products, 'MNEProducts', 'products.DEM.MNEProducts')
@@ -609,10 +578,8 @@ class Phase(Component):
 
         cover_rate_products_properties = et.SubElement(maket_module_products, 'coverRateProductsProperties')
         self._set(cover_rate_products_properties, 'coverRatePerType', 'products.DEM.coverRatePerType')
-        self._set(cover_rate_products_properties, 'totalMaketCoverRate',
-                  'products.DEM.totalMaketCoverRate')
-        self._set(cover_rate_products_properties, 'coverRatePrecision',
-                  'products.DEM.coverRatePrecision')
+        self._set(cover_rate_products_properties, 'totalMaketCoverRate', 'products.DEM.totalMaketCoverRate')
+        self._set(cover_rate_products_properties, 'coverRatePrecision', 'products.DEM.coverRatePrecision')
 
         lai_products_properties = et.SubElement(maket_module_products, 'LaiProductsProperties')
         self._set(lai_products_properties, 'lai1DProducts', 'products.DEM.lai1DProducts')
@@ -629,6 +596,8 @@ class Directions(Component):
         return True
 
     def _write575(self, params, *args, **kwargs):
+        self._written_params = params
+
         directions = et.SubElement(self.xml_root, self.COMPONENT_NAME)
         self._set(directions, 'exactDate', params.get('exactDate'))
         self._set(directions, 'ifCosWeighted', params.get('ifCosWeighted'))
@@ -676,7 +645,7 @@ class Plots(Component):
 
         import_fichier_raster = et.SubElement(plots, 'ImportationFichierRaster')
 
-        ground_types = 'general.ground_types'
+        ground_types = self._get('general.ground_types')
 
         if land_cover is None:
             return
@@ -688,9 +657,9 @@ class Plots(Component):
                     plot_type = land_cover[row, col]
 
                     plot = et.SubElement(plots, 'Plot')
-                    self._check_and_set(plot, 'form', '0')
-                    self._check_and_set(plot, 'isDisplayed', '1')
-                    # self._check_and_set(Plot,'hidden','0')
+                    self._set(plot, 'form', '0')
+                    self._set(plot, 'isDisplayed', '1')
+                    # self._set(Plot,'hidden','0')
 
                     polygon_2d = et.SubElement(plot, 'Polygon2D')
 
@@ -713,55 +682,44 @@ class Plots(Component):
                     if plot_type in ground_types['vegetation'].ids:
                         vegetation_id = ground_types.ids.index(plot_type)
                         # TODO: shouldn't this be type 2 i.e. ground and vegetation
-                        self._check_and_set(plot, 'type', '1')
+                        self._set(plot, 'type', '1')
 
                         plot_vegetation_properties = et.SubElement(plot, 'PlotVegetationProperties')
-                        self._set(plot_vegetation_properties, 'densityDefinition',
-                                  'vegetation.densityDefinition')
-                        self._set(plot_vegetation_properties, 'verticalFillMode',
-                                  'vegetation.verticalFillMode')
+                        self._set(plot_vegetation_properties, 'densityDefinition', 'vegetation.densityDefinition')
+                        self._set(plot_vegetation_properties, 'verticalFillMode', 'vegetation.verticalFillMode')
 
                         vegetation_geometry = et.SubElement(plot_vegetation_properties, 'VegetationGeometry')
-                        self._set(vegetation_geometry, 'stDev',
-                                  'vegetation.stdDev'[vegetation_id])
-                        self._check_and_set(vegetation_geometry, 'baseheight', '0')
-                        self._set(vegetation_geometry, 'height',
-                                  'vegetation.height'[vegetation_id])
+                        self._set(vegetation_geometry, 'stDev', 'vegetation.stdDev.' + str(vegetation_id))
+                        self._set(vegetation_geometry, 'baseheight', '0')
+                        self._set(vegetation_geometry, 'height', 'vegetation.height.' + str(vegetation_id))
 
                         lai_vegetation = et.SubElement(plot_vegetation_properties, 'LAIVegetation')
-                        self._set(lai_vegetation, 'LAI', 'vegetation.lai'[vegetation_id])
+                        self._set(lai_vegetation, 'LAI', 'vegetation.lai.' + str(vegetation_id))
 
                         vegetation_optical_property_link = et.SubElement(plot_vegetation_properties,
                                                                          'VegetationOpticalPropertyLink')
-                        self._check_and_set(vegetation_optical_property_link, 'ident',
-                                            'vegetation.ident'[vegetation_id])
-                        self._check_and_set(vegetation_optical_property_link, 'indexFctPhase', self._str_none(
-                            'vegetation.indexFctPhase'[vegetation_id]))
+                        self._set(vegetation_optical_property_link, 'ident', 'vegetation.ident.' + str(vegetation_id))
+                        self._set(vegetation_optical_property_link, 'indexFctPhase',
+                                  'vegetation.indexFctPhase.' + str(vegetation_id))
 
                         ground_thermal_property_link = et.SubElement(plot_vegetation_properties,
                                                                      'GroundThermalPropertyLink')
-                        self._set(ground_thermal_property_link, 'idTemperature',
-                                  'temperature.idTemperature')
-                        self._set(ground_thermal_property_link, 'indexTemperature',
-                                  'temperature.indexTemperature')
+                        self._set(ground_thermal_property_link, 'idTemperature', 'temperature.idTemperature')
+                        self._set(ground_thermal_property_link, 'indexTemperature', 'temperature.indexTemperature')
 
                     elif plot_type in ground_types['ground'].ids:
                         litter_id = ground_types.ids.index(plot_type)
-                        self._check_and_set(plot, 'type', '0')
+                        self._set(plot, 'type', '0')
 
                         ground_optical_property_link = et.SubElement(plot, 'GroundOpticalPropertyLink')
-                        self._check_and_set(ground_optical_property_link, 'ident',
-                                            'ground.ident'[litter_id])
+                        self._set(ground_optical_property_link, 'ident', 'ground.ident.' + str(litter_id))
                         self._set(ground_optical_property_link, 'indexFctPhase',
-                                  'ground.indexFctPhase'[litter_id])
-                        self._set(ground_optical_property_link, 'type',
-                                  'ground.type'[litter_id])
+                                  'ground.indexFctPhase.' + str(litter_id))
+                        self._set(ground_optical_property_link, 'type', 'ground.type.' + str(litter_id))
 
                         ground_thermal_property_link = et.SubElement(plot, 'GroundThermalPropertyLink')
-                        self._set(ground_thermal_property_link, 'idTemperature',
-                                  'temperature.idTemperature')
-                        self._set(ground_thermal_property_link, 'indexTemperature',
-                                  'temperature.indexTemperature')
+                        self._set(ground_thermal_property_link, 'idTemperature', 'temperature.idTemperature')
+                        self._set(ground_thermal_property_link, 'indexTemperature', 'temperature.indexTemperature')
 
                     # TODO: there should also be a treatment for type 2 and 3, i.e. ground and vegetation and fluids
                     else:
@@ -777,32 +735,32 @@ class CoeffDiff(Component):
         return True
 
     def _write575(self, params, *args, **kwargs):
+        self._written_params = params
+
         coeff_diff = et.SubElement(self.xml_root, self.COMPONENT_NAME)
         self._set(coeff_diff, 'fluorescenceProducts', 'fluorescence.fluorescenceProducts')
-        self._check_and_set(coeff_diff, 'fluorescenceFile', self._str_none(
-            'fluorescence.fluorescenceFile'))  ## TODO: there should be a field to assign a file here!
+        self._set(coeff_diff, 'fluorescenceFile',
+                  'fluorescence.fluorescenceFile')  ## TODO: there should be a field to assign a file here!
 
         # *** 2d lambertian spectra ***
         lambertian_multi_functions = et.SubElement(coeff_diff, 'LambertianMultiFunctions')
 
         for m, (model_name, ident) in enumerate(zip('lop2d.ModelName', 'lop2d.ident')):
             lambertian_multi = et.SubElement(lambertian_multi_functions, 'LambertianMulti')
-            self._check_and_set(lambertian_multi, 'ModelName', model_name)
+
+            self._set(lambertian_multi, 'ModelName', model_name)
             self._set(lambertian_multi, 'databaseName', 'lop2d.databaseName')
-            self._check_and_set(lambertian_multi, 'ident', ident)
+            self._set(lambertian_multi, 'ident', ident)
             self._set(lambertian_multi, 'roStDev', 'lop2d.roStDev')
             # self._set(lambertian_multi, 'specularDatabaseName', 'lop2d.databaseName')
-            # self._check_and_set(lambertian_multi, 'specularModelName', 'lop2d.ModelName'{m})
+            # self._set(lambertian_multi, 'specularModelName', 'lop2d.ModelName'{m})
             # self._set(lambertian_multi, 'specularRoStDev', 'lop2d.roStDev')
-            self._set(lambertian_multi, 'useMultiplicativeFactorForLUT',
-                      'lop2d.useMultiplicativeFactorForLUT')
+            self._set(lambertian_multi, 'useMultiplicativeFactorForLUT', 'lop2d.useMultiplicativeFactorForLUT')
             self._set(lambertian_multi, 'useSpecular', 'lop2d.useSpecular')
 
             prospect_external_module = et.SubElement(lambertian_multi, 'ProspectExternalModule')
-            self._set(prospect_external_module, 'isFluorescent',
-                      'lop2d.is_fluorescent'[m])
-            self._set(prospect_external_module, 'useProspectExternalModule',
-                      'lop2d.useProspectExternalModule')
+            self._set(prospect_external_module, 'isFluorescent', 'lop2d.is_fluorescent.' + str(m))
+            self._set(prospect_external_module, 'useProspectExternalModule', 'lop2d.useProspectExternalModule')
 
             lambertian_node_multiplicative_factor_for_lut = et.SubElement(lambertian_multi,
                                                                           'lambertianNodeMultiplicativeFactorForLUT')
@@ -812,8 +770,7 @@ class CoeffDiff(Component):
                       'lop2d.diffuseTransmittanceAcceleration')
             self._set(lambertian_node_multiplicative_factor_for_lut, 'directTransmittanceFactor',
                       'lop2d.directTransmittanceFactor')
-            self._set(lambertian_node_multiplicative_factor_for_lut, 'reflectanceFactor',
-                      'lop2d.reflectanceFactor')
+            self._set(lambertian_node_multiplicative_factor_for_lut, 'reflectanceFactor', 'lop2d.reflectanceFactor')
             self._set(lambertian_node_multiplicative_factor_for_lut, 'specularIntensityFactor',
                       'lop2d.specularIntensityFactor')
             self._set(lambertian_node_multiplicative_factor_for_lut, 'useSameFactorForAllBands',
@@ -827,8 +784,7 @@ class CoeffDiff(Component):
                       'lop2d.diffuseTransmittanceFactor')
             self._set(understory_multiplicative_factor_for_lut, 'directTransmittanceFactor',
                       'lop2d.directTransmittanceFactor')
-            self._set(understory_multiplicative_factor_for_lut, 'reflectanceFactor',
-                      'lop2d.reflectanceFactor')
+            self._set(understory_multiplicative_factor_for_lut, 'reflectanceFactor', 'lop2d.reflectanceFactor')
             self._set(understory_multiplicative_factor_for_lut, 'specularIntensityFactor',
                       'lop2d.specularIntensityFactor')
             self._set(understory_multiplicative_factor_for_lut, 'useOpticalFactorMatrix',
@@ -841,17 +797,15 @@ class CoeffDiff(Component):
 
         # *** 3d turbid spectra ***
         understory_multi_functions = et.SubElement(coeff_diff, 'UnderstoryMultiFunctions')
-        self._set(understory_multi_functions, 'outputLADFile',
-                  'understory_multi_functions.outputLADFile')
-        self._set(understory_multi_functions, 'integrationStepOnPhi',
-                  'understory_multi_functions.integrationStepOnPhi')
+        self._set(understory_multi_functions, 'outputLADFile', 'understory_multi_functions.outputLADFile')
+        self._set(understory_multi_functions, 'integrationStepOnPhi', 'understory_multi_functions.integrationStepOnPhi')
         self._set(understory_multi_functions, 'integrationStepOnTheta',
                   'understory_multi_functions.integrationStepOnTheta')
         # self._set(UnderstoryMultiFunctions, 'specularEffects',        #                     'understory_multi_functions.specularEffects')
-        # self._check_and_set(UnderstoryMultiFunctions, 'useBunnick','0')
+        # self._set(UnderstoryMultiFunctions, 'useBunnick','0')
 
-        for m in range(len('lop3d.model')):
-            model = 'lop3d.model'[m]
+        for m in range(len(self._get('lop3d.model'))):
+            model = self._get('lop3d.model.' + str(m))
             # (model_name, ident, lad) in enumerate(zip('lop3d.ModelName', 'lop3d.ident',
             #                                              'lop3d.lad')):
             understory_multi = et.SubElement(understory_multi_functions, 'UnderstoryMulti')
@@ -865,7 +819,8 @@ class CoeffDiff(Component):
             understory_multi_model = et.SubElement(understory_multi, 'UnderstoryMultiModel')
             self._set(understory_multi_model, 'ModelName', model.get('ModelName'))
             self._set(understory_multi_model, 'databaseName', model.get('databaseName'))
-            self._set(understory_multi_model, 'useMultiplicativeFactorForLUT', model.get('useMultiplicativeFactorForLUT'))
+            self._set(understory_multi_model, 'useMultiplicativeFactorForLUT',
+                      model.get('useMultiplicativeFactorForLUT'))
             self._set(understory_multi_model, 'useSpecular', model.get('useSpecular'))
 
             prospect_external_module = et.SubElement(understory_multi_model, 'ProspectExternalModule')
@@ -882,32 +837,26 @@ class CoeffDiff(Component):
                       model.get('diffuseTransmittanceAcceleration'))
             self._set(understory_node_multiplicative_factor_for_lut, 'useSameFactorForAllBands',
                       model.get('useSameFactorForAllBands'))
-            self._set(understory_node_multiplicative_factor_for_lut, 'useSameOpticalFactorMatrixForAllBands',
-                      model.get('useSameOpticalFactorMatrixForAllBands'))  # TODO: Implement further input datafile which is needed, when this parameter is set to true!
+            self._set(understory_node_multiplicative_factor_for_lut, 'useSameOpticalFactorMatrixForAllBands', model.get(
+                'useSameOpticalFactorMatrixForAllBands'))  # TODO: Implement further input datafile which is needed, when this parameter is set to true!
 
             understory_multiplicative_factor_for_lut = et.SubElement(understory_node_multiplicative_factor_for_lut,
                                                                      'understoryMultiplicativeFactorForLUT')
             self._set(understory_multiplicative_factor_for_lut, 'LeafTransmittanceFactor',
                       model.get('LeafTransmittanceFactor'))
-            self._set(understory_multiplicative_factor_for_lut, 'reflectanceFactor',
-                      model.get('reflectanceFactor'))
-            self._set(understory_multiplicative_factor_for_lut, 'useOpticalFactorMatrix',
-                                model.get('useOpticalFactorMatrix'))  # TODO:implement changes to xml file, when this is set to true!
+            self._set(understory_multiplicative_factor_for_lut, 'reflectanceFactor', model.get('reflectanceFactor'))
+            self._set(understory_multiplicative_factor_for_lut, 'useOpticalFactorMatrix', model.get(
+                'useOpticalFactorMatrix'))  # TODO:implement changes to xml file, when this is set to true!
 
             specular_data = et.SubElement(understory_multi_model, 'SpecularData')
-            self._set(specular_data, 'specularDatabaseName',
-                      model.get('specularDatabaseName'))
+            self._set(specular_data, 'specularDatabaseName', model.get('specularDatabaseName'))
             self._set(specular_data, 'specularModelName', model.get('specularModelName'))
             directional_clumping_index_properties = et.SubElement(understory_multi,
                                                                   'DirectionalClumpingIndexProperties')
-            self._set(directional_clumping_index_properties, 'clumpinga',
-                      model.get('clumpinga'))
-            self._set(directional_clumping_index_properties, 'clumpingb',
-                      model.get('clumpingb'))
-            self._set(directional_clumping_index_properties, 'omegaMax',
-                      model.get('omegaMax'))
-            self._set(directional_clumping_index_properties, 'omegaMin',
-                      model.get('omegaMin'))
+            self._set(directional_clumping_index_properties, 'clumpinga', model.get('clumpinga'))
+            self._set(directional_clumping_index_properties, 'clumpingb', model.get('clumpingb'))
+            self._set(directional_clumping_index_properties, 'omegaMax', model.get('omegaMax'))
+            self._set(directional_clumping_index_properties, 'omegaMin', model.get('omegaMin'))
 
         air_multi_functions = et.SubElement(coeff_diff, 'AirMultiFunctions')
         phase_extern_multi_functions = et.SubElement(coeff_diff, 'PhaseExternMultiFunctions')
@@ -920,8 +869,8 @@ class CoeffDiff(Component):
         self._set(thermal_function, 'override3DMatrix', 'temperature.override3DMatrix')
         self._set(thermal_function, 'singleTemperatureSurface', 'temperature.singleTemperatureSurface')
         self._set(thermal_function, 'useOpticalFactorMatrix', 'temperature.useOpticalFactorMatrix')
-        self._set(thermal_function, 'usePrecomputedIPARs', 'temperature.usePrecomputedIPARs')
-        # self._set(ThermalFunction, 'useOpticalFactorMatrix', 'lop3d.useOpticalFactorMatrix')
+        self._set(thermal_function, 'usePrecomputedIPARs',
+                  'temperature.usePrecomputedIPARs')  # self._set(ThermalFunction, 'useOpticalFactorMatrix', 'lop3d.useOpticalFactorMatrix')
 
 
 class Object3d(Component):
@@ -933,32 +882,34 @@ class Object3d(Component):
         return True
 
     def _write575(self, params, *args, **kwargs):
+        self._written_params = params
+
         object_3d = et.SubElement(self.xml_root, self.COMPONENT_NAME)
 
         types = et.SubElement(object_3d, 'Types')
         default_types = et.SubElement(types, 'DefaultTypes')
 
         default_type = et.SubElement(default_types, 'DefaultType')
-        self._check_and_set(default_type, 'indexOT', '101')
-        self._check_and_set(default_type, 'name', 'Default_Object')
-        self._check_and_set(default_type, 'typeColor', '125 0 125')
+        self._set(default_type, 'indexOT', '101')
+        self._set(default_type, 'name', 'Default_Object')
+        self._set(default_type, 'typeColor', '125 0 125')
 
         default_type2 = et.SubElement(default_types, 'DefaultType')
-        self._check_and_set(default_type2, 'indexOT', '102')
-        self._check_and_set(default_type2, 'name', 'Leaf')
-        self._check_and_set(default_type2, 'typeColor', '0 175 0')
+        self._set(default_type2, 'indexOT', '102')
+        self._set(default_type2, 'name', 'Leaf')
+        self._set(default_type2, 'typeColor', '0 175 0')
 
         custom_types = et.SubElement(types, 'CustomTypes')
         object_list = et.SubElement(object_3d, 'ObjectList')
 
         obj = et.SubElement(object_list, 'Object')
-        self._check_and_set(obj, 'file_src', 'path2obj')
+        self._set(obj, 'file_src', 'path2obj')
         self._set(obj, 'hasGroups', 'hasGroups')
         self._set(obj, 'hidden', 'hidden')
         self._set(obj, 'isDisplayed', 'isDisplayed')
-        self._check_and_set(obj, 'name', 'name')
+        self._set(obj, 'name', 'name')
         self._set(obj, 'num', 'num')
-        self._check_and_set(obj, 'objectColor', 'objectColor')
+        self._set(obj, 'objectColor', 'objectColor')
         self._set(obj, 'objectDEMMode', 'objectDEMMode')
 
         geom_prop = et.SubElement(obj, 'GeometricProperties')
@@ -1022,7 +973,9 @@ class Maket(Component):
     def _check_params(self, params):
         return True
 
-    def _write575(self, params):
+    def _write575(self, params, **kwargs):
+        self._written_params = params
+
         maket = et.SubElement(self.xml_root, self.COMPONENT_NAME)
         self._set(maket, 'dartZone', 'dartZone')
         self._set(maket, 'exactlyPeriodicScene', 'exactlyPeriodicScene')
@@ -1032,12 +985,12 @@ class Maket(Component):
         scene = et.SubElement(self.xml_root, 'Scene')
 
         cell_dimensions = et.SubElement(self.xml_root, 'cell_dimensions')
-        self._set(cell_dimensions, 'x', 'voxelDim'[0])
-        self._set(cell_dimensions, 'z', 'voxelDim'[2])
+        self._set(cell_dimensions, 'x', 'voxelDim.' + str(0))
+        self._set(cell_dimensions, 'z', 'voxelDim.' + str(2))
 
         scene_dimensions = et.SubElement(self.xml_root, 'SceneDimensions')
-        self._set(scene_dimensions, 'x', 'sceneDim'[1])
-        self._set(scene_dimensions, 'y', 'sceneDim'[0])
+        self._set(scene_dimensions, 'x', 'sceneDim.' + str(1))
+        self._set(scene_dimensions, 'y', 'sceneDim.' + str(0))
 
         # ground
         soil = et.SubElement(self.xml_root, 'Soil')
@@ -1056,10 +1009,10 @@ class Maket(Component):
         # topography
         if not 'topography.fileName':
             topography = et.SubElement(soil, 'Topography')
-            self._check_and_set(topography, 'presenceOfTopography', '0')
+            self._set(topography, 'presenceOfTopography', '0')
 
             DEM_properties = et.SubElement(soil, 'DEM_properties')
-            self._check_and_set(DEM_properties, 'createTopography', '0')
+            self._set(DEM_properties, 'createTopography', '0')
 
         else:
             topography = et.SubElement(self.xml_root, 'Topography')
@@ -1079,7 +1032,7 @@ class Maket(Component):
             DEM_5 = et.SubElement(DEM_generator, 'DEM_5')
             self._set(DEM_5, 'dataEncoding', 'DEM5.dataEncoding')
             self._set(DEM_5, 'dataFormat', 'DEM5.dataFormat')
-            self._check_and_set(DEM_5, 'fileName', 'DEM5.fileName')
+            self._set(DEM_5, 'fileName', 'DEM5.fileName')
 
         # geo-location
         location = et.SubElement(self.xml_root, 'LatLon')
@@ -1098,6 +1051,8 @@ class Atmosphere(Component):
         return True
 
     def _write560(self, params, *args, **kwargs):
+        self._written_params = params
+
         atmos = et.SubElement(self.xml_root, self.COMPONENT_NAME)
         self._set(atmos, 'isRadiativeTransfertInBottomAtmosphereDefined',
                   'general.isRadiativeTransfertInBottomAtmosphereDefined')
@@ -1112,8 +1067,7 @@ class Atmosphere(Component):
                   'general.inputOutputTransfertFunctions')
 
         computed_transfer_functions = et.SubElement(atmosphere_transfer_functions, 'ComputedTransferFunctions')
-        self._set(computed_transfer_functions, 'writeTransferFunctions',
-                  'general.writeTransferFunctions')
+        self._set(computed_transfer_functions, 'writeTransferFunctions', 'general.writeTransferFunctions')
 
         atmosphere_products = et.SubElement(atmosphere_iterations, 'AtmosphereProducts')
         self._set(atmosphere_products, 'atmosphereBRF_TOA', 'products.atmosphereBRF_TOA')
@@ -1153,66 +1107,53 @@ class Atmosphere(Component):
         layer = et.SubElement(upper_atmosphere, 'Layer')
         self._set(layer, 'zHA', 'dimensions.zHA')
 
-        if 'general.typeOfAtmosphere' == 1:
+        if self._get('general.typeOfAtmosphere') == 1:
             atmospheric_optical_property_model = et.SubElement(is_atmosphere, 'AtmosphericOpticalPropertyModel')
             self._set(atmospheric_optical_property_model, 'correctionBandModel',
                       'optical_property_db.correctionBandModel')
-            self._set(atmospheric_optical_property_model, 'databaseName',
-                      'optical_property_db.dataBaseName')
+            self._set(atmospheric_optical_property_model, 'databaseName', 'optical_property_db.dataBaseName')
             self._set(atmospheric_optical_property_model, 'temperatureModelName',
                       'optical_property_db.temperatureModelName')
 
-            self._check_and_set(atmospheric_optical_property_model, 'hgParametersModelName', self._str_none(
-                'optical_property_db.aerosol.hgParametersModelName'))
-            self._check_and_set(atmospheric_optical_property_model, 'aerosolCumulativeModelName', self._str_none(
-                'optical_property_db.aerosol.cumulativeModelName'))
+            self._set(atmospheric_optical_property_model, 'hgParametersModelName',
+                      'optical_property_db.aerosol.hgParametersModelName')
+            self._set(atmospheric_optical_property_model, 'aerosolCumulativeModelName',
+                      'optical_property_db.aerosol.cumulativeModelName')
             self._set(atmospheric_optical_property_model, 'aerosolOptDepthFactor',
                       'optical_property_db.aerosol.optDepthFactor')
-            self._set(atmospheric_optical_property_model, 'aerosolsGroup',
-                      'optical_property_db.aerosol.group')
-            self._set(atmospheric_optical_property_model, 'aerosolsModelName',
-                      'optical_property_db.aerosol.modelName')
+            self._set(atmospheric_optical_property_model, 'aerosolsGroup', 'optical_property_db.aerosol.group')
+            self._set(atmospheric_optical_property_model, 'aerosolsModelName', 'optical_property_db.aerosol.modelName')
 
             self._set(atmospheric_optical_property_model, 'gasCumulativeModelName',
                       'optical_property_db.gas.cumulativeModelName')
             self._set(atmospheric_optical_property_model, 'gasGroup', 'optical_property_db.gas.group')
-            self._set(atmospheric_optical_property_model, 'gasModelName',
-                      'optical_property_db.gas.modelName')
-            self._check_and_set(atmospheric_optical_property_model, 'gasParametersModelName', self._str_none(
-                'optical_property_db.gas.gasParametersModelName'))
+            self._set(atmospheric_optical_property_model, 'gasModelName', 'optical_property_db.gas.modelName')
+            self._set(atmospheric_optical_property_model, 'gasParametersModelName',
+                      'optical_property_db.gas.gasParametersModelName')
 
             self._set(atmospheric_optical_property_model, 'precipitableWaterAmountCkeckbox',
-                      'optical_property_db.water'.get('include'))
+                      'optical_property_db.water.include')
             water_amount = et.SubElement(atmospheric_optical_property_model, 'WaterAmount')
-            self._check_and_set(water_amount, 'precipitableWaterAmount', self._str_none(
-                'optical_property_db.water'.get('precipitableWaterAmount')))
+            self._set(water_amount, 'precipitableWaterAmount', 'optical_property_db.water.precipitableWaterAmount')
 
-        elif 'general.typeOfAtmosphere' == 0:
+        elif self._get('general.typeOfAtmosphere') == 0:
             atmospheric_optical_property = et.SubElement(is_atmosphere, 'AtmosphericOpticalProperty')
-            self._set(atmospheric_optical_property, 'courbureTerre',
-                      'optical_property.correct_earth_curvature')
+            self._set(atmospheric_optical_property, 'courbureTerre', 'optical_property.correct_earth_curvature')
             self._set(atmospheric_optical_property, 'pointMilieu', 'optical_property.correct_mid_point')
             self._set(atmospheric_optical_property, 'a_HG', 'optical_property.heyney_greenstein_a')
             self._set(atmospheric_optical_property, 'g1', 'optical_property.heyney_greenstein_g1')
             self._set(atmospheric_optical_property, 'g2', 'optical_property.heyney_greenstein_g2')
 
-            self._set(atmospheric_optical_property, 'aerosolOpticalDepth',
-                      'optical_property.aerosol.optical_depth')
-            self._set(atmospheric_optical_property, 'aerosolScaleFactor',
-                      'optical_property.aerosol.scale_factor')
-            self._set(atmospheric_optical_property, 'aerosolAlbedo',
-                      'optical_property.aerosol.albedo')
+            self._set(atmospheric_optical_property, 'aerosolOpticalDepth', 'optical_property.aerosol.optical_depth')
+            self._set(atmospheric_optical_property, 'aerosolScaleFactor', 'optical_property.aerosol.scale_factor')
+            self._set(atmospheric_optical_property, 'aerosolAlbedo', 'optical_property.aerosol.albedo')
 
-            self._set(atmospheric_optical_property, 'gasOpticalDepth',
-                      'optical_property.gas.optical_depth')
-            self._set(atmospheric_optical_property, 'gasScaleFactor',
-                      'optical_property.gas.scale_factor')
-            self._set(atmospheric_optical_property, 'transmittanceOfGases',
-                      'optical_property.gas.transmittance')
+            self._set(atmospheric_optical_property, 'gasOpticalDepth', 'optical_property.gas.optical_depth')
+            self._set(atmospheric_optical_property, 'gasScaleFactor', 'optical_property.gas.scale_factor')
+            self._set(atmospheric_optical_property, 'transmittanceOfGases', 'optical_property.gas.transmittance')
 
             temperature_model = et.SubElement(is_atmosphere, 'TemperatureFile')
-            self._set(temperature_model, 'atmosphereTemperatureFileName',
-                      'optical_property.temperature_file_name')
+            self._set(temperature_model, 'atmosphereTemperatureFileName', 'optical_property.temperature_file_name')
         else:
             raise TypeError('Variable typeOfAtmosphere must be 0 or 1')
 
@@ -1221,6 +1162,8 @@ class Atmosphere(Component):
         self._set(is_radiative_transfert_in_bottom_atmosphere, 'BA_altitude', 'dimensions.BA_altitude')
 
     def _write575(self, params, *args, **kwargs):
+        self._written_params = params
+
         atmos = et.SubElement(self.xml_root, self.COMPONENT_NAME)
         self._set(atmos, 'isRadiativeTransfertInBottomAtmosphereDefined',
                   'general.isRadiativeTransfertInBottomAtmosphereDefined')
@@ -1235,8 +1178,7 @@ class Atmosphere(Component):
                   'general.inputOutputTransfertFunctions')
 
         computed_transfer_functions = et.SubElement(atmosphere_transfer_functions, 'ComputedTransferFunctions')
-        self._set(computed_transfer_functions, 'writeTransferFunctions',
-                  'general.writeTransferFunctions')
+        self._set(computed_transfer_functions, 'writeTransferFunctions', 'general.writeTransferFunctions')
 
         atmosphere_products = et.SubElement(atmosphere_iterations, 'AtmosphereProducts')
         self._set(atmosphere_products, 'atmosphereBRF_TOA', 'products.atmosphereBRF_TOA')
@@ -1254,8 +1196,7 @@ class Atmosphere(Component):
         atmosphere_expert_mode_zone = et.SubElement(atmosphere_iterations, 'AtmosphereExpertModeZone')
         self._set(atmosphere_expert_mode_zone, 'extrapol_atmos', 'expert.extrapol_atmos')
         self._set(atmosphere_expert_mode_zone, 'number_iterationMax', 'expert.number_iterationMax')
-        self._set(atmosphere_expert_mode_zone, 'threshold_Atmos_scattering',
-                  'expert.threshold_Atmos_scattering')
+        self._set(atmosphere_expert_mode_zone, 'threshold_Atmos_scattering', 'expert.threshold_Atmos_scattering')
 
         atmosphere_geometry = et.SubElement(is_atmosphere, 'AtmosphereGeometry')
         self._set(atmosphere_geometry, 'discretisationAtmos', 'geometry.discretisationAtmos')
@@ -1280,17 +1221,14 @@ class Atmosphere(Component):
 
         aerosol = et.SubElement(atmos, 'Aerosol')
         aerosol_properties = et.SubElement(aerosol, 'AerosolProperties')
-        self._set(aerosol_properties, 'hgParametersModelName',
-                  'optical_property_db.aerosol.hgParametersModelName')
-        self._set(aerosol_properties, 'aerosolCumulativeModelName',
-                  'optical_property_db.aerosol.cumulativeModelName')
-        self._set(aerosol_properties, 'aerosolOptDepthFactor',
-                  'optical_property_db.aerosol.optDepthFactor')
+        self._set(aerosol_properties, 'hgParametersModelName', 'optical_property_db.aerosol.hgParametersModelName')
+        self._set(aerosol_properties, 'aerosolCumulativeModelName', 'optical_property_db.aerosol.cumulativeModelName')
+        self._set(aerosol_properties, 'aerosolOptDepthFactor', 'optical_property_db.aerosol.optDepthFactor')
         self._set(aerosol_properties, 'aerosolsGroup', 'optical_property_db.aerosol.group')
         self._set(aerosol_properties, 'aerosolsModelName', 'optical_property_db.aerosol.modelName')
         self._set(aerosol_properties, 'databaseName', 'optical_property_db.aerosol.dataBaseName')
 
-        if 'general.typeOfAtmosphere' == 1:
+        if self._get('general.typeOfAtmosphere') == 1:
             atmospheric_optical_property_model = et.SubElement(is_atmosphere, 'AtmosphericOpticalPropertyModel')
             self._set(atmospheric_optical_property_model, 'correctionBandModel',
                       'optical_property_db.correctionBandModel')
@@ -1300,46 +1238,36 @@ class Atmosphere(Component):
             self._set(atmospheric_optical_property_model, 'gasCumulativeModelName',
                       'optical_property_db.gas.cumulativeModelName')
             self._set(atmospheric_optical_property_model, 'gasGroup', 'optical_property_db.gas.group')
-            self._set(atmospheric_optical_property_model, 'gasModelName',
-                      'optical_property_db.gas.modelName')
-            self._check_and_set(atmospheric_optical_property_model, 'gasParametersModelName', self._str_none(
-                'optical_property_db.gas.gasParametersModelName'))
+            self._set(atmospheric_optical_property_model, 'gasModelName', 'optical_property_db.gas.modelName')
+            self._set(atmospheric_optical_property_model, 'gasParametersModelName',
+                      'optical_property_db.gas.gasParametersModelName')
 
-            self._set(atmospheric_optical_property_model, 'precipitableWaterAmountCkeckbox',
-                      'water.include')
+            self._set(atmospheric_optical_property_model, 'precipitableWaterAmountCkeckbox', 'water.include')
             water_amount = et.SubElement(atmospheric_optical_property_model, 'WaterAmount')
             self._set(water_amount, 'defWaterAmount', 'water.defWaterAmount')
 
-            if 'water.defWaterAmount' == '0':
+            if self._get('water.defWaterAmount') == '0':
                 water_spec = et.SubElement(water_amount, 'M_factor')
                 water_spec.set('mulFactorH2O', 'water.mulFactorH2O')
 
-        elif 'general.typeOfAtmosphere' == 0:
+        elif self._get('general.typeOfAtmosphere') == 0:
             atmospheric_optical_property = et.SubElement(is_atmosphere, 'AtmosphericOpticalProperty')
-            self._set(atmospheric_optical_property, 'courbureTerre',
-                      'optical_property.correct_earth_curvature')
+            self._set(atmospheric_optical_property, 'courbureTerre', 'optical_property.correct_earth_curvature')
             self._set(atmospheric_optical_property, 'pointMilieu', 'optical_property.correct_mid_point')
             self._set(atmospheric_optical_property, 'a_HG', 'optical_property.heyney_greenstein_a')
             self._set(atmospheric_optical_property, 'g1', 'optical_property.heyney_greenstein_g1')
             self._set(atmospheric_optical_property, 'g2', 'optical_property.heyney_greenstein_g2')
 
-            self._set(atmospheric_optical_property, 'aerosolOpticalDepth',
-                      'optical_property.aerosol.optical_depth')
-            self._set(atmospheric_optical_property, 'aerosolScaleFactor',
-                      'optical_property.aerosol.scale_factor')
-            self._set(atmospheric_optical_property, 'aerosolAlbedo',
-                      'optical_property.aerosol.albedo')
+            self._set(atmospheric_optical_property, 'aerosolOpticalDepth', 'optical_property.aerosol.optical_depth')
+            self._set(atmospheric_optical_property, 'aerosolScaleFactor', 'optical_property.aerosol.scale_factor')
+            self._set(atmospheric_optical_property, 'aerosolAlbedo', 'optical_property.aerosol.albedo')
 
-            self._set(atmospheric_optical_property, 'gasOpticalDepth',
-                      'optical_property.gas.optical_depth')
-            self._set(atmospheric_optical_property, 'gasScaleFactor',
-                      'optical_property.gas.scale_factor')
-            self._set(atmospheric_optical_property, 'transmittanceOfGases',
-                      'optical_property.gas.transmittance')
+            self._set(atmospheric_optical_property, 'gasOpticalDepth', 'optical_property.gas.optical_depth')
+            self._set(atmospheric_optical_property, 'gasScaleFactor', 'optical_property.gas.scale_factor')
+            self._set(atmospheric_optical_property, 'transmittanceOfGases', 'optical_property.gas.transmittance')
 
             temperature_model = et.SubElement(is_atmosphere, 'TemperatureFile')
-            self._set(temperature_model, 'atmosphereTemperatureFileName',
-                      'optical_property.temperature_file_name')
+            self._set(temperature_model, 'atmosphereTemperatureFileName', 'optical_property.temperature_file_name')
         else:
             raise TypeError('Variable typeOfAtmosphere must be 0 or 1')
 
