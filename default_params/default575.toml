@@ -472,24 +472,26 @@ output_location ='output'
         
 [coeff_diff]
     [coeff_diff.lop2d]
-        ModelName = ['litter']                  # 2d reflectance model (how it is stored in database)
-        ident = ['litter']                      # phase function's name
-        is_fluorescent = [0]                    # TODO: need maybe other parameters to be per model in list
-	 	databaseName = 'Lambertian.db'        # 2d reflectance database filename
-	 	roStDev = 0.000                       # reflectance variability
-	 	lad = [5]
-	 	useMultiplicativeFactorForLUT = 1
-	 	useSpecular = 0
-	 	useProspectExternalModule = 0          # ProspectExternalModule
-        # lambertianNodeMultiplicativeFactorForLUT
-	 	useSameFactorForAllBands = 1
-	    useSameOpticalFactorMatrixForAllBands = 0 #TODO: figure out what this new flag does! If this flag is set, the user has to define a further input file... this has to be implemented here as well first!
-        # lambertianMultiplicativeFactorForLUT
-	 	diffuseTransmittanceFactor = 1.0
-	 	directTransmittanceFactor = 1.0
-	 	diffuseTransmittanceAcceleration = 0
-	 	reflectanceFactor = 1.0
-	 	specularIntensityFactor = 1.0
+        [[coeff_diff.lop2d.model]]
+            ModelName = 'litter'                # 2d reflectance model (how it is stored in database)
+            ident = 'litter'                      # phase function's name
+            is_fluorescent = 0                    # TODO: need maybe other parameters to be per model in list
+            lad = 5
+
+            databaseName = 'Lambertian.db'        # 2d reflectance database filename
+            roStDev = 0                      # reflectance variability
+            useMultiplicativeFactorForLUT = 1
+            useSpecular = 0
+            useProspectExternalModule = 0          # ProspectExternalModule
+            # lambertianNodeMultiplicativeFactorForLUT
+            useSameFactorForAllBands = 1
+            useSameOpticalFactorMatrixForAllBands = 0 #TODO: figure out what this new flag does! If this flag is set, the user has to define a further input file... this has to be implemented here as well first!
+            # lambertianMultiplicativeFactorForLUT
+            diffuseTransmittanceFactor = 1.0
+            directTransmittanceFactor = 1.0
+            diffuseTransmittanceAcceleration = 0
+            reflectanceFactor = 1.0
+            specularIntensityFactor = 1.0
 
     [coeff_diff.understory_multi_functions]
         # UnderstoryMultiFunctions
@@ -559,6 +561,7 @@ output_location ='output'
         isVegetation = 0                         # plots from landcover map
         addExtraPlotsTextFile = 0                # flag to add extra plots with a text file... not sure how this works and how this could help
         landcover_file = ''
+        voxelDim = [0.25, 0.25]
 
         [plots.general.ground_types.vegetation]
             ids = [1, 2]

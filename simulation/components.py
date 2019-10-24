@@ -125,27 +125,18 @@ class Component(object):
         if self.xml_patch_path is not None:
             self.patch_to_xml()
 
-    def _check_and_set(self, element, key, val, check=None):
-        if check is not None:
-            assert check(key, val)
-
-        element.set(key, val)
-
     @classmethod
     def _copy_from_simulation(cls, copy_xml_path, new_xml_path):
         copyfile(copy_xml_path, new_xml_path)
 
-    def _str_none(self, val):
-        if val is not None:
-            return str(val)
-        return None
+    def _set(self, el, key, params_path, check=None, as_is=False):
+        if not as_is:
+            val = self._get(params_path)
+        else:
+            val = params_path
 
-    def _set(self, el, key, params_path, check=None):
-        try:
-            self._check_and_set(el, key, self._str_none(self._get(params_path)), check=check)
-        except:
-            logging.warning('Could not set DART parameter ' + key + ' defined as ' +
-            params_path + ' with value ' + str(self._get(params_path)))
+        self._check_and_set(el, key, self._str_none(val), check=check)
+
 
     def _get(self, params_path, params=None):
         if params is None:
@@ -163,6 +154,23 @@ class Component(object):
             return reduce(operator.getitem, nodes, params)
         except:
             return None
+
+    @classmethod
+    def _check_and_set(cls, element, key, val, check=None):
+        if check is not None:
+            assert check(key, val)
+
+        try:
+            element.set(key, val)
+        except TypeError:
+            logging.warning(cls.COMPONENT_NAME + ' component could not set DART parameter ' + key + ' defined as ' +
+                            str(val))
+
+    @classmethod
+    def _str_none(cls, val):
+        if val is not None:
+            return str(val)
+        return None
 
     def _check_params(self, params):
         raise NotImplementedError
@@ -211,7 +219,7 @@ class TriangleFile(Component):
         return True
 
     @classmethod
-    def _copy_from_simulation(self, copy_xml_path, new_xml_path):
+    def _copy_from_simulation(cls, copy_xml_path, new_xml_path):
         Component._copy_from_simulation(copy_xml_path, new_xml_path)
 
         directory, fil = os.path.split(copy_xml_path)
@@ -261,11 +269,11 @@ class Phase(Component):
         self._written_params = params
 
         phase = et.SubElement(self.xml_root, self.COMPONENT_NAME)
-        self._set(phase, 'calculatorMethod', params.get('calculatorMethod'))
+        self._set(phase, 'calculatorMethod', 'calculatorMethod')
 
         # radiative transfer method
         atmosphere_radiative_transfer = et.SubElement(phase, 'AtmosphereRadiativeTransfer')
-        self._set(atmosphere_radiative_transfer, 'TOAtoBOA', params.get('toaToBoa'))
+        self._set(atmosphere_radiative_transfer, 'TOAtoBOA', 'toaToBoa')
 
         # advanced mode
         expert_mode_zone = et.SubElement(phase, 'ExpertModeZone')
@@ -322,7 +330,7 @@ class Phase(Component):
         if self._get('spectral.meanLambda') is not None:
             for n in range(len(self._get('spectral.meanLambda'))):
                 spectral_intervals_properties = et.SubElement(spectral_intervals, 'SpectralIntervalsProperties')
-                self._set(spectral_intervals_properties, 'bandNumber', n)
+                self._set(spectral_intervals_properties, 'bandNumber', n, as_is=True)
                 self._set(spectral_intervals_properties, 'deltaLambda', 'spectral.deltaLambda.' + str(n))
                 self._set(spectral_intervals_properties, 'meanLambda', 'spectral.meanLambda.' + str(n))
                 self._set(spectral_intervals_properties, 'spectralDartMode', 'spectral.spectralDartMode.' + str(n))
@@ -599,9 +607,9 @@ class Directions(Component):
         self._written_params = params
 
         directions = et.SubElement(self.xml_root, self.COMPONENT_NAME)
-        self._set(directions, 'exactDate', params.get('exactDate'))
-        self._set(directions, 'ifCosWeighted', params.get('ifCosWeighted'))
-        self._set(directions, 'numberOfPropagationDirections', params.get('numberOfPropagationDirections'))
+        self._set(directions, 'exactDate', 'exactDate')
+        self._set(directions, 'ifCosWeighted', 'ifCosWeighted')
+        self._set(directions, 'numberOfPropagationDirections', 'numberOfPropagationDirections')
 
         sun_viewing_angles = et.SubElement(directions, 'SunViewingAngles')
         self._set(sun_viewing_angles, 'sunViewingAzimuthAngle', 'sun.sunViewingAzimuthAngle')
@@ -623,7 +631,7 @@ class Directions(Component):
         self._set(hot_spot_upward_region, 'omega', 'hotspot.omegaUp')
 
         penumbra_mode = et.SubElement(directions, 'Penumbra')
-        self._set(penumbra_mode, 'mode', params.get('penumbraMode'))
+        self._set(penumbra_mode, 'mode', 'penumbraMode')
 
         expert_mode_zone = et.SubElement(directions, 'ExpertModeZone')
         self._set(expert_mode_zone, 'numberOfAngularSector', 'expert.numberOfAngularSector')
@@ -638,7 +646,9 @@ class Plots(Component):
     def _check_params(self, params):
         return True
 
-    def _write575(self, params, land_cover, voxel_size, *args, **kwargs):
+    def _write575(self, params, land_cover, *args, **kwargs):
+        self._written_params = params
+
         plots = et.SubElement(self.xml_root, self.COMPONENT_NAME)
         self._set(plots, 'isVegetation', 'general.isVegetation')
         self._set(plots, 'addExtraPlotsTextFile', 'general.addExtraPlotsTextFile')
@@ -663,17 +673,18 @@ class Plots(Component):
 
                     polygon_2d = et.SubElement(plot, 'Polygon2D')
 
+                    voxel_size = self._get('voxelDim')
                     point_2d = et.SubElement(polygon_2d, 'Point2D')
                     self._set(point_2d, 'x', str(voxel_size[0] * row))
                     self._set(point_2d, 'y', str(voxel_size[1] * col))
 
                     point_2d = et.SubElement(polygon_2d, 'Point2D')
-                    self._set(point_2d, 'x', str(voxel_size * (row + 1)))
-                    self._set(point_2d, 'y', str(voxel_size * col))
+                    self._set(point_2d, 'x', str(voxel_size[0] * (row + 1)))
+                    self._set(point_2d, 'y', str(voxel_size[1] * col))
 
                     point_2d = et.SubElement(polygon_2d, 'Point2D')
-                    self._set(point_2d, 'x', str(voxel_size * (row + 1)))
-                    self._set(point_2d, 'y', str(voxel_size * (col + 1)))
+                    self._set(point_2d, 'x', str(voxel_size[0] * (row + 1)))
+                    self._set(point_2d, 'y', str(voxel_size[1] * (col + 1)))
 
                     point_2d = et.SubElement(polygon_2d, 'Point2D')
                     self._set(point_2d, 'x', str(voxel_size[0] * row))
@@ -745,50 +756,52 @@ class CoeffDiff(Component):
         # *** 2d lambertian spectra ***
         lambertian_multi_functions = et.SubElement(coeff_diff, 'LambertianMultiFunctions')
 
-        for m, (model_name, ident) in enumerate(zip('lop2d.ModelName', 'lop2d.ident')):
-            lambertian_multi = et.SubElement(lambertian_multi_functions, 'LambertianMulti')
+        if self._get('lop2d.model') is not None:
+            for m in range(len(self._get('lop2d.model'))):
+                model = self._get('lop2d.model.' + str(m))
+                lambertian_multi = et.SubElement(lambertian_multi_functions, 'LambertianMulti')
 
-            self._set(lambertian_multi, 'ModelName', model_name)
-            self._set(lambertian_multi, 'databaseName', 'lop2d.databaseName')
-            self._set(lambertian_multi, 'ident', ident)
-            self._set(lambertian_multi, 'roStDev', 'lop2d.roStDev')
-            # self._set(lambertian_multi, 'specularDatabaseName', 'lop2d.databaseName')
-            # self._set(lambertian_multi, 'specularModelName', 'lop2d.ModelName'{m})
-            # self._set(lambertian_multi, 'specularRoStDev', 'lop2d.roStDev')
-            self._set(lambertian_multi, 'useMultiplicativeFactorForLUT', 'lop2d.useMultiplicativeFactorForLUT')
-            self._set(lambertian_multi, 'useSpecular', 'lop2d.useSpecular')
+                self._set(lambertian_multi, 'ModelName', model.get('ModelName'), as_is=True)
+                self._set(lambertian_multi, 'databaseName', model.get('databaseName'), as_is=True)
+                self._set(lambertian_multi, 'ident', model.get('ident'), as_is=True)
+                self._set(lambertian_multi, 'roStDev', model.get('roStDev'), as_is=True)
+                # self._set(lambertian_multi, 'specularDatabaseName', model.get('databaseName'), as_is=True)
+                # self._set(lambertian_multi, 'specularModelName', 'lop2d.ModelName'{m})
+                # self._set(lambertian_multi, 'specularRoStDev', model.get('roStDev'), as_is=True)
+                self._set(lambertian_multi, 'useMultiplicativeFactorForLUT', model.get('useMultiplicativeFactorForLUT'), as_is=True)
+                self._set(lambertian_multi, 'useSpecular', model.get('useSpecular'), as_is=True)
 
-            prospect_external_module = et.SubElement(lambertian_multi, 'ProspectExternalModule')
-            self._set(prospect_external_module, 'isFluorescent', 'lop2d.is_fluorescent.' + str(m))
-            self._set(prospect_external_module, 'useProspectExternalModule', 'lop2d.useProspectExternalModule')
+                prospect_external_module = et.SubElement(lambertian_multi, 'ProspectExternalModule')
+                self._set(prospect_external_module, 'isFluorescent', model.get('is_fluorescent'), as_is=True)
+                self._set(prospect_external_module, 'useProspectExternalModule', model.get('useProspectExternalModule'), as_is=True)
 
-            lambertian_node_multiplicative_factor_for_lut = et.SubElement(lambertian_multi,
-                                                                          'lambertianNodeMultiplicativeFactorForLUT')
-            self._set(lambertian_node_multiplicative_factor_for_lut, 'diffuseTransmittanceFactor',
-                      'lop2d.diffuseTransmittanceFactor')
-            self._set(lambertian_node_multiplicative_factor_for_lut, 'diffuseTransmittanceAcceleration',
-                      'lop2d.diffuseTransmittanceAcceleration')
-            self._set(lambertian_node_multiplicative_factor_for_lut, 'directTransmittanceFactor',
-                      'lop2d.directTransmittanceFactor')
-            self._set(lambertian_node_multiplicative_factor_for_lut, 'reflectanceFactor', 'lop2d.reflectanceFactor')
-            self._set(lambertian_node_multiplicative_factor_for_lut, 'specularIntensityFactor',
-                      'lop2d.specularIntensityFactor')
-            self._set(lambertian_node_multiplicative_factor_for_lut, 'useSameFactorForAllBands',
-                      'lop2d.useSameFactorForAllBands')
-            self._set(lambertian_node_multiplicative_factor_for_lut, 'useSameOpticalFactorMatrixForAllBands',
-                      'lop2d.useSameOpticalFactorMatrixForAllBands')
+                lambertian_node_multiplicative_factor_for_lut = et.SubElement(lambertian_multi,
+                                                                              'lambertianNodeMultiplicativeFactorForLUT')
+                self._set(lambertian_node_multiplicative_factor_for_lut, 'diffuseTransmittanceFactor',
+                          model.get('diffuseTransmittanceFactor'), as_is=True)
+                self._set(lambertian_node_multiplicative_factor_for_lut, 'diffuseTransmittanceAcceleration',
+                          model.get('diffuseTransmittanceAcceleration'), as_is=True)
+                self._set(lambertian_node_multiplicative_factor_for_lut, 'directTransmittanceFactor',
+                          model.get('directTransmittanceFactor'), as_is=True)
+                self._set(lambertian_node_multiplicative_factor_for_lut, 'reflectanceFactor', model.get('reflectanceFactor'), as_is=True)
+                self._set(lambertian_node_multiplicative_factor_for_lut, 'specularIntensityFactor',
+                          model.get('specularIntensityFactor'), as_is=True)
+                self._set(lambertian_node_multiplicative_factor_for_lut, 'useSameFactorForAllBands',
+                          model.get('useSameFactorForAllBands'), as_is=True)
+                self._set(lambertian_node_multiplicative_factor_for_lut, 'useSameOpticalFactorMatrixForAllBands',
+                          model.get('useSameOpticalFactorMatrixForAllBands'), as_is=True)
 
-            understory_multiplicative_factor_for_lut = et.SubElement(lambertian_node_multiplicative_factor_for_lut,
-                                                                     'lambertianMultiplicativeFactorForLUT')
-            self._set(understory_multiplicative_factor_for_lut, 'diffuseTransmittanceFactor',
-                      'lop2d.diffuseTransmittanceFactor')
-            self._set(understory_multiplicative_factor_for_lut, 'directTransmittanceFactor',
-                      'lop2d.directTransmittanceFactor')
-            self._set(understory_multiplicative_factor_for_lut, 'reflectanceFactor', 'lop2d.reflectanceFactor')
-            self._set(understory_multiplicative_factor_for_lut, 'specularIntensityFactor',
-                      'lop2d.specularIntensityFactor')
-            self._set(understory_multiplicative_factor_for_lut, 'useOpticalFactorMatrix',
-                      'lop2d.useSameOpticalFactorMatrixForAllBands')
+                understory_multiplicative_factor_for_lut = et.SubElement(lambertian_node_multiplicative_factor_for_lut,
+                                                                         'lambertianMultiplicativeFactorForLUT')
+                self._set(understory_multiplicative_factor_for_lut, 'diffuseTransmittanceFactor',
+                          model.get('diffuseTransmittanceFactor'), as_is=True)
+                self._set(understory_multiplicative_factor_for_lut, 'directTransmittanceFactor',
+                          model.get('directTransmittanceFactor'), as_is=True)
+                self._set(understory_multiplicative_factor_for_lut, 'reflectanceFactor', model.get('reflectanceFactor'), as_is=True)
+                self._set(understory_multiplicative_factor_for_lut, 'specularIntensityFactor',
+                          model.get('specularIntensityFactor'), as_is=True)
+                self._set(understory_multiplicative_factor_for_lut, 'useOpticalFactorMatrix',
+                          model.get('useSameOpticalFactorMatrixForAllBands'), as_is=True)
 
         # LambertianSpecularMultiFunctions = et.SubElement(coeff_diff, 'LambertianSpecularMultiFunctions')
 
@@ -804,59 +817,60 @@ class CoeffDiff(Component):
         # self._set(UnderstoryMultiFunctions, 'specularEffects',        #                     'understory_multi_functions.specularEffects')
         # self._set(UnderstoryMultiFunctions, 'useBunnick','0')
 
-        for m in range(len(self._get('lop3d.model'))):
-            model = self._get('lop3d.model.' + str(m))
-            # (model_name, ident, lad) in enumerate(zip('lop3d.ModelName', 'lop3d.ident',
-            #                                              'lop3d.lad')):
-            understory_multi = et.SubElement(understory_multi_functions, 'UnderstoryMulti')
-            self._set(understory_multi, 'dimFoliar', model.get('dimFoliar'))
-            self._set(understory_multi, 'ident', model.get('ident'))
-            self._set(understory_multi, 'lad', model.get('lad'))
-            self._set(understory_multi, 'hasDifferentModelForBottom', model.get('hasDifferentModelForBottom'))
-            self._set(understory_multi, 'thermalHotSpotFactor', model.get('thermalHotSpotFactor'))
-            self._set(understory_multi, 'useOpticalFactorMatrix', model.get('useOpticalFactorMatrix'))
+        if self._get('lop3d.model') is not None:
+            for m in range(len(self._get('lop3d.model'))):
+                model = self._get('lop3d.model.' + str(m))
+                # (model_name, ident, lad) in enumerate(zip('lop3d.ModelName', 'lop3d.ident',
+                #                                              'lop3d.lad')):
+                understory_multi = et.SubElement(understory_multi_functions, 'UnderstoryMulti')
+                self._set(understory_multi, 'dimFoliar', model.get('dimFoliar'), as_is=True)
+                self._set(understory_multi, 'ident', model.get('ident'), as_is=True)
+                self._set(understory_multi, 'lad', model.get('lad'), as_is=True)
+                self._set(understory_multi, 'hasDifferentModelForBottom', model.get('hasDifferentModelForBottom'), as_is=True)
+                self._set(understory_multi, 'thermalHotSpotFactor', model.get('thermalHotSpotFactor'), as_is=True)
+                self._set(understory_multi, 'useOpticalFactorMatrix', model.get('useOpticalFactorMatrix'), as_is=True)
 
-            understory_multi_model = et.SubElement(understory_multi, 'UnderstoryMultiModel')
-            self._set(understory_multi_model, 'ModelName', model.get('ModelName'))
-            self._set(understory_multi_model, 'databaseName', model.get('databaseName'))
-            self._set(understory_multi_model, 'useMultiplicativeFactorForLUT',
-                      model.get('useMultiplicativeFactorForLUT'))
-            self._set(understory_multi_model, 'useSpecular', model.get('useSpecular'))
+                understory_multi_model = et.SubElement(understory_multi, 'UnderstoryMultiModel')
+                self._set(understory_multi_model, 'ModelName', model.get('ModelName'), as_is=True)
+                self._set(understory_multi_model, 'databaseName', model.get('databaseName'), as_is=True)
+                self._set(understory_multi_model, 'useMultiplicativeFactorForLUT',
+                          model.get('useMultiplicativeFactorForLUT'), as_is=True)
+                self._set(understory_multi_model, 'useSpecular', model.get('useSpecular'), as_is=True)
 
-            prospect_external_module = et.SubElement(understory_multi_model, 'ProspectExternalModule')
-            self._set(prospect_external_module, 'useProspectExternalModule', model.get('useProspectExternalModule'))
-            self._set(prospect_external_module, 'isFluorescent', model.get('isFluorescent'))
+                prospect_external_module = et.SubElement(understory_multi_model, 'ProspectExternalModule')
+                self._set(prospect_external_module, 'useProspectExternalModule', model.get('useProspectExternalModule'), as_is=True)
+                self._set(prospect_external_module, 'isFluorescent', model.get('isFluorescent'), as_is=True)
 
-            understory_node_multiplicative_factor_for_lut = et.SubElement(understory_multi_model,
-                                                                          'understoryNodeMultiplicativeFactorForLUT')
-            self._set(understory_node_multiplicative_factor_for_lut, 'LeafTransmittanceFactor',
-                      model.get('LeafTransmittanceFactor'))
-            self._set(understory_node_multiplicative_factor_for_lut, 'reflectanceFactor',
-                      model.get('reflectanceFactor'))
-            self._set(understory_node_multiplicative_factor_for_lut, 'diffuseTransmittanceAcceleration',
-                      model.get('diffuseTransmittanceAcceleration'))
-            self._set(understory_node_multiplicative_factor_for_lut, 'useSameFactorForAllBands',
-                      model.get('useSameFactorForAllBands'))
-            self._set(understory_node_multiplicative_factor_for_lut, 'useSameOpticalFactorMatrixForAllBands', model.get(
-                'useSameOpticalFactorMatrixForAllBands'))  # TODO: Implement further input datafile which is needed, when this parameter is set to true!
+                understory_node_multiplicative_factor_for_lut = et.SubElement(understory_multi_model,
+                                                                              'understoryNodeMultiplicativeFactorForLUT')
+                self._set(understory_node_multiplicative_factor_for_lut, 'LeafTransmittanceFactor',
+                          model.get('LeafTransmittanceFactor'), as_is=True)
+                self._set(understory_node_multiplicative_factor_for_lut, 'reflectanceFactor',
+                          model.get('reflectanceFactor'), as_is=True)
+                self._set(understory_node_multiplicative_factor_for_lut, 'diffuseTransmittanceAcceleration',
+                          model.get('diffuseTransmittanceAcceleration'), as_is=True)
+                self._set(understory_node_multiplicative_factor_for_lut, 'useSameFactorForAllBands',
+                          model.get('useSameFactorForAllBands'), as_is=True)
+                self._set(understory_node_multiplicative_factor_for_lut, 'useSameOpticalFactorMatrixForAllBands',
+                          model.get('useSameOpticalFactorMatrixForAllBands'), as_is=True)  # TODO: Implement further input datafile which is needed, when this parameter is set to true!
 
-            understory_multiplicative_factor_for_lut = et.SubElement(understory_node_multiplicative_factor_for_lut,
-                                                                     'understoryMultiplicativeFactorForLUT')
-            self._set(understory_multiplicative_factor_for_lut, 'LeafTransmittanceFactor',
-                      model.get('LeafTransmittanceFactor'))
-            self._set(understory_multiplicative_factor_for_lut, 'reflectanceFactor', model.get('reflectanceFactor'))
-            self._set(understory_multiplicative_factor_for_lut, 'useOpticalFactorMatrix', model.get(
-                'useOpticalFactorMatrix'))  # TODO:implement changes to xml file, when this is set to true!
+                understory_multiplicative_factor_for_lut = et.SubElement(understory_node_multiplicative_factor_for_lut,
+                                                                         'understoryMultiplicativeFactorForLUT')
+                self._set(understory_multiplicative_factor_for_lut, 'LeafTransmittanceFactor',
+                          model.get('LeafTransmittanceFactor'), as_is=True)
+                self._set(understory_multiplicative_factor_for_lut, 'reflectanceFactor', model.get('reflectanceFactor'), as_is=True)
+                self._set(understory_multiplicative_factor_for_lut, 'useOpticalFactorMatrix', model.get(
+                    'useOpticalFactorMatrix'), as_is=True)  # TODO:implement changes to xml file, when this is set to true!
 
-            specular_data = et.SubElement(understory_multi_model, 'SpecularData')
-            self._set(specular_data, 'specularDatabaseName', model.get('specularDatabaseName'))
-            self._set(specular_data, 'specularModelName', model.get('specularModelName'))
-            directional_clumping_index_properties = et.SubElement(understory_multi,
-                                                                  'DirectionalClumpingIndexProperties')
-            self._set(directional_clumping_index_properties, 'clumpinga', model.get('clumpinga'))
-            self._set(directional_clumping_index_properties, 'clumpingb', model.get('clumpingb'))
-            self._set(directional_clumping_index_properties, 'omegaMax', model.get('omegaMax'))
-            self._set(directional_clumping_index_properties, 'omegaMin', model.get('omegaMin'))
+                specular_data = et.SubElement(understory_multi_model, 'SpecularData')
+                self._set(specular_data, 'specularDatabaseName', model.get('specularDatabaseName'), as_is=True)
+                self._set(specular_data, 'specularModelName', model.get('specularModelName'), as_is=True)
+                directional_clumping_index_properties = et.SubElement(understory_multi,
+                                                                      'DirectionalClumpingIndexProperties')
+                self._set(directional_clumping_index_properties, 'clumpinga', model.get('clumpinga'), as_is=True)
+                self._set(directional_clumping_index_properties, 'clumpingb', model.get('clumpingb'), as_is=True)
+                self._set(directional_clumping_index_properties, 'omegaMax', model.get('omegaMax'), as_is=True)
+                self._set(directional_clumping_index_properties, 'omegaMin', model.get('omegaMin'), as_is=True)
 
         air_multi_functions = et.SubElement(coeff_diff, 'AirMultiFunctions')
         phase_extern_multi_functions = et.SubElement(coeff_diff, 'PhaseExternMultiFunctions')
@@ -890,14 +904,14 @@ class Object3d(Component):
         default_types = et.SubElement(types, 'DefaultTypes')
 
         default_type = et.SubElement(default_types, 'DefaultType')
-        self._set(default_type, 'indexOT', '101')
-        self._set(default_type, 'name', 'Default_Object')
-        self._set(default_type, 'typeColor', '125 0 125')
+        self._set(default_type, 'indexOT', '101', as_is=True)
+        self._set(default_type, 'name', 'Default_Object', as_is=True)
+        self._set(default_type, 'typeColor', '125 0 125', as_is=True)
 
         default_type2 = et.SubElement(default_types, 'DefaultType')
-        self._set(default_type2, 'indexOT', '102')
-        self._set(default_type2, 'name', 'Leaf')
-        self._set(default_type2, 'typeColor', '0 175 0')
+        self._set(default_type2, 'indexOT', '102', as_is=True)
+        self._set(default_type2, 'name', 'Leaf', as_is=True)
+        self._set(default_type2, 'typeColor', '0 175 0', as_is=True)
 
         custom_types = et.SubElement(types, 'CustomTypes')
         object_list = et.SubElement(object_3d, 'ObjectList')
@@ -915,14 +929,14 @@ class Object3d(Component):
         geom_prop = et.SubElement(obj, 'GeometricProperties')
 
         pos_prop = et.SubElement(geom_prop, 'PositionProperties')
-        self._set(pos_prop, 'xpos', params.get('location')[0])
-        self._set(pos_prop, 'ypos', params.get('location')[1])
-        self._set(pos_prop, 'zpos', params.get('location')[2])
+        self._set(pos_prop, 'xpos', params.get('location')[0], as_is=True)
+        self._set(pos_prop, 'ypos', params.get('location')[1], as_is=True)
+        self._set(pos_prop, 'zpos', params.get('location')[2], as_is=True)
 
         dimension = et.SubElement(geom_prop, 'Dimension3D')
-        self._set(dimension, 'xdim', params.get('dim')[0])
-        self._set(dimension, 'ydim', params.get('location')[1])
-        self._set(dimension, 'zdim', params.get('location')[2])
+        self._set(dimension, 'xdim', params.get('dim')[0], as_is=True)
+        self._set(dimension, 'ydim', params.get('location')[1], as_is=True)
+        self._set(dimension, 'zdim', params.get('location')[2], as_is=True)
 
         scale_prop = et.SubElement(geom_prop, 'ScaleProperties')
         self._set(scale_prop, 'xScaleDeviation', 'scale.xScaleDeviation')
@@ -1036,9 +1050,9 @@ class Maket(Component):
 
         # geo-location
         location = et.SubElement(self.xml_root, 'LatLon')
-        self._set(location, 'altitude', params.get('location')[2])
-        self._set(location, 'latitude', params.get('location')[0])
-        self._set(location, 'longitude', params.get('location')[1])
+        self._set(location, 'altitude', params.get('location')[2], as_is=True)
+        self._set(location, 'latitude', params.get('location')[0], as_is=True)
+        self._set(location, 'longitude', params.get('location')[1], as_is=True)
 
 
 class Atmosphere(Component):
@@ -1269,7 +1283,9 @@ class Atmosphere(Component):
             temperature_model = et.SubElement(is_atmosphere, 'TemperatureFile')
             self._set(temperature_model, 'atmosphereTemperatureFileName', 'optical_property.temperature_file_name')
         else:
-            raise TypeError('Variable typeOfAtmosphere must be 0 or 1')
+            raise TypeError('Variable typeOfAtmosphere must be 0 or 1. You set '
+                            + str(self._get('general.typeOfAtmosphere')) + ' of type '
+                            + str(type(self._get('general.typeOfAtmosphere'))))
 
         is_radiative_transfert_in_bottom_atmosphere = et.SubElement(is_atmosphere,
                                                                     'isRadiativeTransfertInBottomAtmosphere')
