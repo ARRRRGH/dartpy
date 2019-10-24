@@ -1,3 +1,4 @@
+import utils.xml_utils
 from . import components as cmp
 import utils.general
 
@@ -214,7 +215,7 @@ class Simulation(object):
         valid = src_config.get('version') is None or patch_config.get('version') is None \
                 or src_config['version'] == patch_config['version']
         if valid:
-            return utils.general.merge_dicts(src_config, patch_config, ignore=ignore)
+            return utils.xml_utils.merge_dicts(src_config, patch_config, ignore=ignore)
         else:
             raise Exception('Version inconsistency')
 
@@ -240,9 +241,8 @@ class Simulation(object):
             if cls is None:
                 raise NotImplementedError('Not all Components are implemented. Use from_simulation to simply' +
                                           ' copy the missing xml files')
-
             self.components[comp] = cls(simulation_dir=self.path, version=self.version,
-                                        params=self.component_params[comp], xml_patch=xml_patch.get(comp))
+                                        params=self.component_params[comp], xml_patch_path=xml_patch.get(comp))
 
     def to_file(self):
         for component in self.components.values():

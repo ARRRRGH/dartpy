@@ -9,6 +9,8 @@ from shutil import copyfile, copytree
 from functools import reduce
 import operator
 
+import utils.xml_utils
+
 ROOT_TAG = 'DartFile'
 
 
@@ -87,7 +89,7 @@ class Component(object):
             return cls(simulation_dir, (xml_root, xml_path), version)
 
     def patch_to_xml(self, xml_path):
-        self.xml_root = utils.general.merge_xmls(self._read(xml_path), self.xml_root)
+        self.xml_root = utils.xml_utils.merge_xmls(self._read(xml_path), self.xml_root)
         self._is_patched_to_xml = True
 
     def to_file(self):
@@ -123,7 +125,8 @@ class Component(object):
             self._write560(params, *args, **kwargs)
 
         if self.xml_patch_path is not None:
-            self.patch_to_xml()
+            print(self.xml_patch_path)
+            self.patch_to_xml(self.xml_patch_path)
 
     @classmethod
     def _copy_from_simulation(cls, copy_xml_path, new_xml_path):
@@ -136,7 +139,6 @@ class Component(object):
             val = params_path
 
         self._check_and_set(el, key, self._str_none(val), check=check)
-
 
     def _get(self, params_path, params=None):
         if params is None:
@@ -490,7 +492,7 @@ class Phase(Component):
         sensor_image_simulation = et.SubElement(phase, 'SensorImageSimulation')
         self._set(sensor_image_simulation, 'importMultipleSensors', 'sensor.importMultipleSensors')
 
-        if params.get('importMultipleSensors'):
+        if self._get('importMultipleSensors') is not None:
             sensors_importation = et.SubElement(sensor_image_simulation, 'SensorsImportation')
             self._set(sensors_importation, 'fileN', 'sensor.fileN')
 
@@ -768,12 +770,14 @@ class CoeffDiff(Component):
                 # self._set(lambertian_multi, 'specularDatabaseName', model.get('databaseName'), as_is=True)
                 # self._set(lambertian_multi, 'specularModelName', 'lop2d.ModelName'{m})
                 # self._set(lambertian_multi, 'specularRoStDev', model.get('roStDev'), as_is=True)
-                self._set(lambertian_multi, 'useMultiplicativeFactorForLUT', model.get('useMultiplicativeFactorForLUT'), as_is=True)
+                self._set(lambertian_multi, 'useMultiplicativeFactorForLUT', model.get('useMultiplicativeFactorForLUT'),
+                          as_is=True)
                 self._set(lambertian_multi, 'useSpecular', model.get('useSpecular'), as_is=True)
 
                 prospect_external_module = et.SubElement(lambertian_multi, 'ProspectExternalModule')
                 self._set(prospect_external_module, 'isFluorescent', model.get('is_fluorescent'), as_is=True)
-                self._set(prospect_external_module, 'useProspectExternalModule', model.get('useProspectExternalModule'), as_is=True)
+                self._set(prospect_external_module, 'useProspectExternalModule', model.get('useProspectExternalModule'),
+                          as_is=True)
 
                 lambertian_node_multiplicative_factor_for_lut = et.SubElement(lambertian_multi,
                                                                               'lambertianNodeMultiplicativeFactorForLUT')
@@ -783,7 +787,8 @@ class CoeffDiff(Component):
                           model.get('diffuseTransmittanceAcceleration'), as_is=True)
                 self._set(lambertian_node_multiplicative_factor_for_lut, 'directTransmittanceFactor',
                           model.get('directTransmittanceFactor'), as_is=True)
-                self._set(lambertian_node_multiplicative_factor_for_lut, 'reflectanceFactor', model.get('reflectanceFactor'), as_is=True)
+                self._set(lambertian_node_multiplicative_factor_for_lut, 'reflectanceFactor',
+                          model.get('reflectanceFactor'), as_is=True)
                 self._set(lambertian_node_multiplicative_factor_for_lut, 'specularIntensityFactor',
                           model.get('specularIntensityFactor'), as_is=True)
                 self._set(lambertian_node_multiplicative_factor_for_lut, 'useSameFactorForAllBands',
@@ -797,7 +802,8 @@ class CoeffDiff(Component):
                           model.get('diffuseTransmittanceFactor'), as_is=True)
                 self._set(understory_multiplicative_factor_for_lut, 'directTransmittanceFactor',
                           model.get('directTransmittanceFactor'), as_is=True)
-                self._set(understory_multiplicative_factor_for_lut, 'reflectanceFactor', model.get('reflectanceFactor'), as_is=True)
+                self._set(understory_multiplicative_factor_for_lut, 'reflectanceFactor', model.get('reflectanceFactor'),
+                          as_is=True)
                 self._set(understory_multiplicative_factor_for_lut, 'specularIntensityFactor',
                           model.get('specularIntensityFactor'), as_is=True)
                 self._set(understory_multiplicative_factor_for_lut, 'useOpticalFactorMatrix',
@@ -826,7 +832,8 @@ class CoeffDiff(Component):
                 self._set(understory_multi, 'dimFoliar', model.get('dimFoliar'), as_is=True)
                 self._set(understory_multi, 'ident', model.get('ident'), as_is=True)
                 self._set(understory_multi, 'lad', model.get('lad'), as_is=True)
-                self._set(understory_multi, 'hasDifferentModelForBottom', model.get('hasDifferentModelForBottom'), as_is=True)
+                self._set(understory_multi, 'hasDifferentModelForBottom', model.get('hasDifferentModelForBottom'),
+                          as_is=True)
                 self._set(understory_multi, 'thermalHotSpotFactor', model.get('thermalHotSpotFactor'), as_is=True)
                 self._set(understory_multi, 'useOpticalFactorMatrix', model.get('useOpticalFactorMatrix'), as_is=True)
 
@@ -838,7 +845,8 @@ class CoeffDiff(Component):
                 self._set(understory_multi_model, 'useSpecular', model.get('useSpecular'), as_is=True)
 
                 prospect_external_module = et.SubElement(understory_multi_model, 'ProspectExternalModule')
-                self._set(prospect_external_module, 'useProspectExternalModule', model.get('useProspectExternalModule'), as_is=True)
+                self._set(prospect_external_module, 'useProspectExternalModule', model.get('useProspectExternalModule'),
+                          as_is=True)
                 self._set(prospect_external_module, 'isFluorescent', model.get('isFluorescent'), as_is=True)
 
                 understory_node_multiplicative_factor_for_lut = et.SubElement(understory_multi_model,
@@ -852,15 +860,18 @@ class CoeffDiff(Component):
                 self._set(understory_node_multiplicative_factor_for_lut, 'useSameFactorForAllBands',
                           model.get('useSameFactorForAllBands'), as_is=True)
                 self._set(understory_node_multiplicative_factor_for_lut, 'useSameOpticalFactorMatrixForAllBands',
-                          model.get('useSameOpticalFactorMatrixForAllBands'), as_is=True)  # TODO: Implement further input datafile which is needed, when this parameter is set to true!
+                          model.get('useSameOpticalFactorMatrixForAllBands'),
+                          as_is=True)  # TODO: Implement further input datafile which is needed, when this parameter is set to true!
 
                 understory_multiplicative_factor_for_lut = et.SubElement(understory_node_multiplicative_factor_for_lut,
                                                                          'understoryMultiplicativeFactorForLUT')
                 self._set(understory_multiplicative_factor_for_lut, 'LeafTransmittanceFactor',
                           model.get('LeafTransmittanceFactor'), as_is=True)
-                self._set(understory_multiplicative_factor_for_lut, 'reflectanceFactor', model.get('reflectanceFactor'), as_is=True)
+                self._set(understory_multiplicative_factor_for_lut, 'reflectanceFactor', model.get('reflectanceFactor'),
+                          as_is=True)
                 self._set(understory_multiplicative_factor_for_lut, 'useOpticalFactorMatrix', model.get(
-                    'useOpticalFactorMatrix'), as_is=True)  # TODO:implement changes to xml file, when this is set to true!
+                    'useOpticalFactorMatrix'),
+                          as_is=True)  # TODO:implement changes to xml file, when this is set to true!
 
                 specular_data = et.SubElement(understory_multi_model, 'SpecularData')
                 self._set(specular_data, 'specularDatabaseName', model.get('specularDatabaseName'), as_is=True)
@@ -929,14 +940,14 @@ class Object3d(Component):
         geom_prop = et.SubElement(obj, 'GeometricProperties')
 
         pos_prop = et.SubElement(geom_prop, 'PositionProperties')
-        self._set(pos_prop, 'xpos', params.get('location')[0], as_is=True)
-        self._set(pos_prop, 'ypos', params.get('location')[1], as_is=True)
-        self._set(pos_prop, 'zpos', params.get('location')[2], as_is=True)
+        self._set(pos_prop, 'xpos', 'location.0')
+        self._set(pos_prop, 'ypos', 'location.1')
+        self._set(pos_prop, 'zpos', 'location.2')
 
         dimension = et.SubElement(geom_prop, 'Dimension3D')
-        self._set(dimension, 'xdim', params.get('dim')[0], as_is=True)
-        self._set(dimension, 'ydim', params.get('location')[1], as_is=True)
-        self._set(dimension, 'zdim', params.get('location')[2], as_is=True)
+        self._set(dimension, 'xdim', 'dim.0')
+        self._set(dimension, 'ydim', 'dim.1')
+        self._set(dimension, 'zdim', 'dim.2')
 
         scale_prop = et.SubElement(geom_prop, 'ScaleProperties')
         self._set(scale_prop, 'xScaleDeviation', 'scale.xScaleDeviation')
@@ -998,7 +1009,7 @@ class Maket(Component):
         # scene
         scene = et.SubElement(self.xml_root, 'Scene')
 
-        cell_dimensions = et.SubElement(self.xml_root, 'cell_dimensions')
+        cell_dimensions = et.SubElement(self.xml_root, 'CellDimensions')
         self._set(cell_dimensions, 'x', 'voxelDim.' + str(0))
         self._set(cell_dimensions, 'z', 'voxelDim.' + str(2))
 
@@ -1050,9 +1061,9 @@ class Maket(Component):
 
         # geo-location
         location = et.SubElement(self.xml_root, 'LatLon')
-        self._set(location, 'altitude', params.get('location')[2], as_is=True)
-        self._set(location, 'latitude', params.get('location')[0], as_is=True)
-        self._set(location, 'longitude', params.get('location')[1], as_is=True)
+        self._set(location, 'altitude', 'location.2')
+        self._set(location, 'latitude', 'location.0')
+        self._set(location, 'longitude', 'location.1')
 
 
 class Atmosphere(Component):
@@ -1242,50 +1253,51 @@ class Atmosphere(Component):
         self._set(aerosol_properties, 'aerosolsModelName', 'optical_property_db.aerosol.modelName')
         self._set(aerosol_properties, 'databaseName', 'optical_property_db.aerosol.dataBaseName')
 
-        if self._get('general.typeOfAtmosphere') == 1:
-            atmospheric_optical_property_model = et.SubElement(is_atmosphere, 'AtmosphericOpticalPropertyModel')
-            self._set(atmospheric_optical_property_model, 'correctionBandModel',
-                      'optical_property_db.correctionBandModel')
-            self._set(atmospheric_optical_property_model, 'temperatureModelName',
-                      'optical_property_db.temperatureModelName')
+        if self._get('general.typeOfAtmosphere') is not None:
+            if self._get('general.typeOfAtmosphere') == 1:
+                atmospheric_optical_property_model = et.SubElement(is_atmosphere, 'AtmosphericOpticalPropertyModel')
+                self._set(atmospheric_optical_property_model, 'correctionBandModel',
+                          'optical_property_db.correctionBandModel')
+                self._set(atmospheric_optical_property_model, 'temperatureModelName',
+                          'optical_property_db.temperatureModelName')
 
-            self._set(atmospheric_optical_property_model, 'gasCumulativeModelName',
-                      'optical_property_db.gas.cumulativeModelName')
-            self._set(atmospheric_optical_property_model, 'gasGroup', 'optical_property_db.gas.group')
-            self._set(atmospheric_optical_property_model, 'gasModelName', 'optical_property_db.gas.modelName')
-            self._set(atmospheric_optical_property_model, 'gasParametersModelName',
-                      'optical_property_db.gas.gasParametersModelName')
+                self._set(atmospheric_optical_property_model, 'gasCumulativeModelName',
+                          'optical_property_db.gas.cumulativeModelName')
+                self._set(atmospheric_optical_property_model, 'gasGroup', 'optical_property_db.gas.group')
+                self._set(atmospheric_optical_property_model, 'gasModelName', 'optical_property_db.gas.modelName')
+                self._set(atmospheric_optical_property_model, 'gasParametersModelName',
+                          'optical_property_db.gas.gasParametersModelName')
 
-            self._set(atmospheric_optical_property_model, 'precipitableWaterAmountCkeckbox', 'water.include')
-            water_amount = et.SubElement(atmospheric_optical_property_model, 'WaterAmount')
-            self._set(water_amount, 'defWaterAmount', 'water.defWaterAmount')
+                self._set(atmospheric_optical_property_model, 'precipitableWaterAmountCkeckbox', 'water.include')
+                water_amount = et.SubElement(atmospheric_optical_property_model, 'WaterAmount')
+                self._set(water_amount, 'defWaterAmount', 'water.defWaterAmount')
 
-            if self._get('water.defWaterAmount') == '0':
-                water_spec = et.SubElement(water_amount, 'M_factor')
-                water_spec.set('mulFactorH2O', 'water.mulFactorH2O')
+                if self._get('water.defWaterAmount') == '0':
+                    water_spec = et.SubElement(water_amount, 'M_factor')
+                    water_spec.set('mulFactorH2O', 'water.mulFactorH2O')
 
-        elif self._get('general.typeOfAtmosphere') == 0:
-            atmospheric_optical_property = et.SubElement(is_atmosphere, 'AtmosphericOpticalProperty')
-            self._set(atmospheric_optical_property, 'courbureTerre', 'optical_property.correct_earth_curvature')
-            self._set(atmospheric_optical_property, 'pointMilieu', 'optical_property.correct_mid_point')
-            self._set(atmospheric_optical_property, 'a_HG', 'optical_property.heyney_greenstein_a')
-            self._set(atmospheric_optical_property, 'g1', 'optical_property.heyney_greenstein_g1')
-            self._set(atmospheric_optical_property, 'g2', 'optical_property.heyney_greenstein_g2')
+            elif self._get('general.typeOfAtmosphere') == 0:
+                atmospheric_optical_property = et.SubElement(is_atmosphere, 'AtmosphericOpticalProperty')
+                self._set(atmospheric_optical_property, 'courbureTerre', 'optical_property.correct_earth_curvature')
+                self._set(atmospheric_optical_property, 'pointMilieu', 'optical_property.correct_mid_point')
+                self._set(atmospheric_optical_property, 'a_HG', 'optical_property.heyney_greenstein_a')
+                self._set(atmospheric_optical_property, 'g1', 'optical_property.heyney_greenstein_g1')
+                self._set(atmospheric_optical_property, 'g2', 'optical_property.heyney_greenstein_g2')
 
-            self._set(atmospheric_optical_property, 'aerosolOpticalDepth', 'optical_property.aerosol.optical_depth')
-            self._set(atmospheric_optical_property, 'aerosolScaleFactor', 'optical_property.aerosol.scale_factor')
-            self._set(atmospheric_optical_property, 'aerosolAlbedo', 'optical_property.aerosol.albedo')
+                self._set(atmospheric_optical_property, 'aerosolOpticalDepth', 'optical_property.aerosol.optical_depth')
+                self._set(atmospheric_optical_property, 'aerosolScaleFactor', 'optical_property.aerosol.scale_factor')
+                self._set(atmospheric_optical_property, 'aerosolAlbedo', 'optical_property.aerosol.albedo')
 
-            self._set(atmospheric_optical_property, 'gasOpticalDepth', 'optical_property.gas.optical_depth')
-            self._set(atmospheric_optical_property, 'gasScaleFactor', 'optical_property.gas.scale_factor')
-            self._set(atmospheric_optical_property, 'transmittanceOfGases', 'optical_property.gas.transmittance')
+                self._set(atmospheric_optical_property, 'gasOpticalDepth', 'optical_property.gas.optical_depth')
+                self._set(atmospheric_optical_property, 'gasScaleFactor', 'optical_property.gas.scale_factor')
+                self._set(atmospheric_optical_property, 'transmittanceOfGases', 'optical_property.gas.transmittance')
 
-            temperature_model = et.SubElement(is_atmosphere, 'TemperatureFile')
-            self._set(temperature_model, 'atmosphereTemperatureFileName', 'optical_property.temperature_file_name')
-        else:
-            raise TypeError('Variable typeOfAtmosphere must be 0 or 1. You set '
-                            + str(self._get('general.typeOfAtmosphere')) + ' of type '
-                            + str(type(self._get('general.typeOfAtmosphere'))))
+                temperature_model = et.SubElement(is_atmosphere, 'TemperatureFile')
+                self._set(temperature_model, 'atmosphereTemperatureFileName', 'optical_property.temperature_file_name')
+            else:
+                raise TypeError('Variable typeOfAtmosphere must be 0 or 1. You set '
+                                + str(self._get('general.typeOfAtmosphere')) + ' of type '
+                                + str(type(self._get('general.typeOfAtmosphere'))))
 
         is_radiative_transfert_in_bottom_atmosphere = et.SubElement(is_atmosphere,
                                                                     'isRadiativeTransfertInBottomAtmosphere')
