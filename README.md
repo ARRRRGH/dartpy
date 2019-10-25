@@ -1,5 +1,5 @@
 # dartpy
-A python module to dispatch and manage DART simulations.
+A python package to dispatch and manage DART simulations.
 
 
 This version is still very beta. I am actively developing the package as I go along using it. If you use DART on a regular 
