@@ -25,12 +25,16 @@ class Component(object):
     def __init__(self, simulation_dir, params, version, xml_patch_path=None, *args, **kwargs):
         """
         Create a component from a params dict. The default config files in ../default_params implicitly define
-        the form of the params dict for each version and each component. Params may not be complete in which case
+        the form of the params dict for each version and each component. The dictionary may not be complete. In this
+        case the component instantiation will succeed but running the simulation will fail probably. In this case,
+        you are advised to  patch params to a valid component xml file using xml_patch_path.
 
+        Check whether there is a component writer for your version by checking if it is in   cls.IMPLEMENTED_WRITE_VERSION
 
         :param simulation_dir:
         :param params:
         :param version:
+        :param xml_patch_path: path to a valid component xml file
         """
         self.simulation_dir = simulation_dir
         self.version = version
@@ -61,16 +65,18 @@ class Component(object):
         return version in cls.IMPLEMENTED_WRITE_VERSION
 
     @classmethod
-    def from_simulation(cls, simulation_dir, path, version, force=False):
+    def from_simulation(cls, simulation_dir, base_path, version, force=False):
         """
-        Create a component from its xml file
+        Create a component from valid component files in an existing simulation (denoted as base simulation). This
+        instantiation checks for version consistency and copies all relevant files without changing.
+
         :param simulation_dir:
-        :param path:
+        :param base_path:
         :param version:
         :param force:
         :return:
         """
-        xml_path = utils.general.create_path(path, 'input', cls.COMPONENT_FILE_NAME)
+        xml_path = utils.general.create_path(base_path, 'input', cls.COMPONENT_FILE_NAME)
         xml_root = cls._read(xml_path)
 
         # Check if this is a dart file, if its version is correct (if supplied) and whether it is the correct component
@@ -93,6 +99,10 @@ class Component(object):
         self._is_patched_to_xml = True
 
     def to_file(self):
+        """
+        Write out the component to file.
+        :return:
+        """
         inp_path = utils.general.create_path(self.simulation_dir, 'input')
         xml_path = utils.general.create_path(inp_path, self.COMPONENT_FILE_NAME)
 

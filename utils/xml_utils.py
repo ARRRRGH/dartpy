@@ -1,41 +1,6 @@
 import collections
-
-import six
 from lxml import etree as et
-
-
-def merge_dicts(src_dict, patch_dict, ignore=None):
-    """
-    Merge nested directory by overriding src_dict values with patch_dict values.
-
-    :param ignore:
-    :param add:
-    :param src_dict:
-    :param patch_dict:
-    :return:
-    """
-    # python 3.8+ compatibility
-    try:
-        collectionsAbc = collections.abc
-    except:
-        collectionsAbc = collections
-
-    if ignore is None:
-        ignore = []
-
-    for k, v in six.iteritems(patch_dict):
-        if v in ignore:
-            continue
-
-        dv = src_dict.get(k, {})
-        if not isinstance(dv, collectionsAbc.Mapping):
-            src_dict[k] = v
-        elif isinstance(v, collectionsAbc.Mapping):
-            src_dict[k] = merge_dicts(dv, v, ignore=ignore)
-        else:
-            src_dict[k] = v
-    return src_dict
-
+from utils.general import merge_dicts
 
 def merge_xmls(src_xml, patch_xml, remove_empty_paths=False, removing_level=3):
     src = etree_to_dict(src_xml)

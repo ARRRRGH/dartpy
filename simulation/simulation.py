@@ -30,15 +30,14 @@ class Simulation(object):
     """
 
     def __init__(self, config, default_config=None, default_patch=True, xml_patch=None, land_cover=None, maket=None,
-                 no_gen=None, version='5.7.5', simulation_name=None, simulation_location=None, dart_path=None, *args,
-                 **kwargs):
+                 no_gen=None, version='5.7.5', simulation_name='new', simulation_location='./test_simulations',
+                 dart_path=None, *args, **kwargs):
         """
-        Create new simulation from a user specified config file. This config file is patched to a default config file
-        that can be supplied. If default_config is None the user config file is patched to a predefined config file. The
-        simulation directory will contain both the user config file and the patched config file for easy introspection.
+        Create a new simulation. Configs are patched in the following order: xml_patch, default_patch, config, args
 
-        :param user_config:
-        :param default_config:
+        :param config (str, dict or list of str and dict): paths to config files or config dicts, higher indices override
+        :param default_config (path or bool): if True get default to closest lower version
+        :param xml_patch (list of tuples): tuples of the form (component_name, path)
         :param args:
         :param kwargs:
         """
@@ -70,10 +69,16 @@ class Simulation(object):
                 self._split_config()
 
         else:
-            if type(config) is str:
-                config = toml.load(config)
+            if not hasattr(config, '__iter__') or type(config) is str:
+                config = [config]
 
-            self.config = Simulation._patch_configs(config, init_user_config, [None])
+            patched_config = {}
+            for conf in config:
+                if type(conf) is str:
+                    conf = toml.load(conf)
+                patched_config = utils.general.merge_dicts(src_dict=patched_config, patch_dict=conf)
+
+            self.config = Simulation._patch_configs(patched_config, init_user_config, [None])
             if default_patch:
                 self.config = self._patch_to_default(self.config)
             self._split_config()
@@ -81,27 +86,34 @@ class Simulation(object):
         self._create_simulation_dir(self.config, *args, **kwargs)
         self._generate_components(ignore=self.non_generated_components, xml_patch=self.xml_patch)
 
+        self._is_to_file = False
+
     def is_complete(self):
         return None in self.components.values()
 
     @classmethod
-    def from_simulation(cls, path, config=None, default_patch=False, simulation_patch=True, xml_patch=None,
+    def from_simulation(cls, base_path, config=None, default_patch=False, simulation_patch=True, xml_patch=None,
                         copy_xml=None, no_gen=None, use_db=None, force=False, *args, **kwargs):
         """
-        Create a duplicate simulation. Any supplied config is patched to the config in the simulation direct if there is
-        one and if simulation_patch=True.
+        Create a new simulation based on an existing simulation directory. Configs are patched in the following order:
+        xml_patch, default_patch, base_simulation_config, config, args
 
-        :param simulation_patch: whether to patch config to the simulation dir config
-        :param default_patch: whether to patch the possibly patched (config + simulation dir config) to a default
+        :param default_config (path or bool): if True get default to closest lower version
+        :param base_path: path to the base simulation
+        :param simulation_patch (bool): whether to patch config to the base simulation config
+        :param xml_patch (str or list of str or list of tuples): component names or tuples of the form (name, path),
+                                                  if only name is supplied the component xml of the base simulation
+                                                  is used, 'all', 'implemented' and 'not_implemented' and the component
+                                                  names can be used in one string with - and + operators as well
         :param use_db:
-        :param copy_xml:
-        :param path:
+        :param copy_xml (str or list of str): see xml_patch
+        :param force: disregard version inconsistencies
         :param args:
         :param kwargs:
         :return:
         """
 
-        simulation_config_path = utils.general.create_path(path, CONFIG_FILE_NAME)
+        simulation_config_path = utils.general.create_path(base_path, CONFIG_FILE_NAME)
 
         user_config_valid = config is not None and os.path.exists(config)
         if not user_config_valid and config is not None:
@@ -113,13 +125,13 @@ class Simulation(object):
         if simulation_patch_valid and user_config_valid:
             config = Simulation._patch_configs(toml.load(simulation_config_path), toml.load(config))
 
-        # if there is no user config but a config in the simulation directory
+        # if there is no user config but a config in the simulation directory and simulation_patch=True
         elif simulation_patch_valid and not user_config_valid:
             config = simulation_config_path
 
-        if os.path.exists(path):
+        if os.path.exists(base_path):
             # generate valid xml_patch_path input
-            xml_patch = cls._convert_component_to_path(xml_patch, path)
+            xml_patch = cls._convert_component_to_path(xml_patch, base_path)
 
             # generate all components that are not copied and are not excluded by no_gem
             no_gen_tot = copy_xml = cls._convert_component_kwarg(copy_xml)
@@ -130,14 +142,21 @@ class Simulation(object):
 
             # copy component xml files of copy_xml components
             for comp in copy_xml:
-                sim.components[comp] = COMPONENTS[comp].from_simulation(simulation_dir=sim.path, path=path,
+                sim.components[comp] = COMPONENTS[comp].from_simulation(simulation_dir=sim.path, base_path=base_path,
                                                                         version=sim.version, force=force)
         else:
-            raise Exception('Simulation directory ' + path + ' does not exist.')
+            raise Exception('Simulation directory ' + base_path + ' does not exist.')
         return sim
 
     @classmethod
     def _convert_component_to_path(cls, lis, simulation_dir_path):
+        """
+        convert shortcut path to valid list of tuples
+
+        :param lis:
+        :param simulation_dir_path:
+        :return:
+        """
         lis = cls._convert_component_kwarg(lis)
 
         ret = []
@@ -154,6 +173,12 @@ class Simulation(object):
 
     @staticmethod
     def _convert_component_kwarg(kwarg):
+        """
+        convert shortcut path to list of components
+
+        :param kwarg:
+        :return:
+        """
         if kwarg is None:
             return set()
 
@@ -181,30 +206,18 @@ class Simulation(object):
 
         return kwarg
 
-    def _create_simulation_dir(self, config, version=None, *args, **kwargs):
+    def _create_simulation_dir(self, user_config, *args, **kwargs):
         """
-        Read user config and create new simulation directory.
+        Create new simulation directory. Check for version consistency
         :param user_config:
         :param args:
         :param kwargs:
         :return:
         """
-        if type(config) == str:
-            user_config_path = config
-            user_config = toml.load(config)
-        elif type(config) == dict:
-            user_config_path = None
-            user_config = config
-        else:
-            raise Exception('config must be a path to a valid toml file or a dictionary.')
 
         # General
         self.dart_path = user_config['dart_path']
-
-        if version is not None and parse_version(version) != parse_version(user_config['version']):
-            raise Exception('Version inconsistency')
-        else:
-            self.version = user_config['version']
+        self.version = user_config['version']
 
         # Path
         time = strftime("%Y-%m-%d-%H_%M_%S", gmtime())
@@ -218,11 +231,8 @@ class Simulation(object):
         else:
             os.makedirs(self.path)
             self.user_config_path = utils.general.create_path(self.path, CONFIG_FILE_NAME)
-            if user_config_path is not None:
-                copyfile(user_config_path, self.user_config_path)
-            else:
-                with open(self.user_config_path, 'w+') as f:
-                    f.write(toml.dumps(user_config))
+            with open(self.user_config_path, 'w+') as f:
+                f.write(toml.dumps(user_config))
 
     def _patch_to_default(self, user_config):
         if self.default_config is None:
@@ -240,7 +250,7 @@ class Simulation(object):
         valid = src_config.get('version') is None or patch_config.get('version') is None \
                 or src_config['version'] == patch_config['version']
         if valid:
-            return utils.xml_utils.merge_dicts(src_config, patch_config, ignore=ignore)
+            return utils.general.merge_dicts(src_config, patch_config, ignore=ignore)
         else:
             raise Exception('Version inconsistency')
 
@@ -270,8 +280,18 @@ class Simulation(object):
                                         params=self.component_params[comp], xml_patch_path=xml_patch.get(comp))
 
     def to_file(self):
+        """
+        Write simulation to a simulation directory
+        :return:
+        """
         for component in self.components.values():
             component.to_file()
+        self._is_to_file = True
 
     def run(self):
+        """
+        Run simulation
+
+        :return:
+        """
         raise NotImplemented
