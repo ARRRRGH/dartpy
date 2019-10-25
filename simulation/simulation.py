@@ -1,7 +1,7 @@
-import re
 
 import utils.xml_utils
 from . import components as cmp
+from . import run
 import utils.general
 
 import toml
@@ -11,6 +11,8 @@ import pickle as pkl
 import dill
 import os
 from time import gmtime, strftime
+import re
+
 
 # TODO: add all needed xml components and mark with NONE
 COMPONENTS = {'atmosphere': cmp.Atmosphere, 'phase': cmp.Phase, 'directions': cmp.Directions, 'plots': cmp.Plots,
@@ -298,7 +300,7 @@ class Simulation(object):
                 raise NotImplementedError('Not all Components are implemented. Use from_simulation to simply' +
                                           ' copy the missing xml files')
             self.components[comp] = cls(simulation_dir=self.path, version=self.version,
-                                        params=self.component_params[comp], xml_patch_path=xml_patch.get(comp))
+                                        xml_patch_path=xml_patch.get(comp), **self.component_params[comp])
 
     def to_file(self):
         """
@@ -309,10 +311,10 @@ class Simulation(object):
             component.to_file()
         self._is_to_file = True
 
-    def run(self):
+    def run(self, *args, **kwargs):
         """
         Run simulation
 
         :return:
         """
-        raise NotImplemented
+        run.SimulationRunner(self).run(*args, **kwargs)
