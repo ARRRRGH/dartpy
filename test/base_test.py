@@ -21,7 +21,7 @@ def from_simulation_test():
         default_patch=True,
         version='5.7.5',
         base_path='D:/DART_575_v1140/DART_575/user_data/simulations/simulationTest',
-        copy_xml='not_implemented',
+        copy_xml='not_implemented + atmosphere',
         simulation_name='new',
         simulation_location='D:/DART_575_v1140/DART_575/user_data/simulations/test')
     sim.to_file()
