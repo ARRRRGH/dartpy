@@ -4,13 +4,11 @@ import utils.xml_utils
 from . import components as cmp
 import utils.general
 
-from pkg_resources import parse_version
-
 import toml
 import logging
-from shutil import copyfile
 from pkg_resources import parse_version
-
+import pickle as pkl
+import dill
 import os
 from time import gmtime, strftime
 
@@ -22,6 +20,7 @@ COMPONENTS = {'atmosphere': cmp.Atmosphere, 'phase': cmp.Phase, 'directions': cm
 CONFIG_FILE_NAME = 'config.toml'
 DEFAULT_CONFIG_FILE_PER_VERSION = {'5.6.0': '../default_params/default560.toml',
                                    '5.7.5': '../default_params/default575.toml'}
+DILL_FIL = 'simulation.dill'
 
 
 class Simulation(object):
@@ -66,8 +65,6 @@ class Simulation(object):
                                 + 'You might be copying them though. In this case ignore this warning.')
             else:
                 self.config = self._patch_to_default(init_user_config)
-                self._split_config()
-
         else:
             if not hasattr(config, '__iter__') or type(config) is str:
                 config = [config]
@@ -75,14 +72,14 @@ class Simulation(object):
             patched_config = {}
             for conf in config:
                 if type(conf) is str:
-                    conf = toml.load(conf)
+                    conf = toml.load(conf, _dict=dict)
                 patched_config = utils.general.merge_dicts(src_dict=patched_config, patch_dict=conf)
 
-            self.config = Simulation._patch_configs(patched_config, init_user_config, [None])
+            self.config = self._patch_configs(patched_config, init_user_config, [None])
             if default_patch:
                 self.config = self._patch_to_default(self.config)
-            self._split_config()
 
+        self._split_config()
         self._create_simulation_dir(self.config, *args, **kwargs)
         self._generate_components(ignore=self.non_generated_components, xml_patch=self.xml_patch)
 
@@ -90,6 +87,11 @@ class Simulation(object):
 
     def is_complete(self):
         return None in self.components.values()
+
+    @classmethod
+    def load(cls, path):
+        with open(utils.general.create_path(path, DILL_FIL), 'rb') as f:
+            return dill.load(f)
 
     @classmethod
     def from_simulation(cls, base_path, config=None, default_patch=False, simulation_patch=True, xml_patch=None,
@@ -123,7 +125,7 @@ class Simulation(object):
 
         # if there is a config_file in the simulation directory and a user config, the configs are patched
         if simulation_patch_valid and user_config_valid:
-            config = Simulation._patch_configs(toml.load(simulation_config_path), toml.load(config))
+            config = Simulation._patch_configs(toml.load(simulation_config_path, _dict=dict), toml.load(config, _dict=dict))
 
         # if there is no user config but a config in the simulation directory and simulation_patch=True
         elif simulation_patch_valid and not user_config_valid:
@@ -234,6 +236,25 @@ class Simulation(object):
             with open(self.user_config_path, 'w+') as f:
                 f.write(toml.dumps(user_config))
 
+        with open(utils.general.create_path(self.path, DILL_FIL), 'wb') as f:
+            dill.dump(self, f, protocol=dill.HIGHEST_PROTOCOL)
+
+    def __getstate__(self):
+        save = self.__dict__.copy()
+
+        # TODO: need this because of some toml dict type messing up the pickling, find way to cast these dicts to builtin dict
+        save.pop('config')
+        save.pop('component_params')
+        return save
+
+    def __setstate__(self, state):
+        self.__dict__ = state
+
+        # TODO: need this because of some toml dict type messing up the pickling, find way to cast these dicts to builtin dict
+        self.config = toml.load(self.user_config_path)
+        self.component_params = {}
+        self._split_config()
+
     def _patch_to_default(self, user_config):
         if self.default_config is None:
             # get most recent version still before this version
@@ -243,7 +264,7 @@ class Simulation(object):
             path_ver.sort(key=lambda i: i[1])
             self.default_config = path_ver[-1][0]
 
-        return Simulation._patch_configs(toml.load(self.default_config), user_config)
+        return Simulation._patch_configs(toml.load(self.default_config, _dict=dict), user_config, ignore=[None])
 
     @staticmethod
     def _patch_configs(src_config, patch_config, ignore=None):

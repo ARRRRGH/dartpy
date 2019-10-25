@@ -29,7 +29,7 @@ class Component(object):
         case the component instantiation will succeed but running the simulation will fail probably. In this case,
         you are advised to  patch params to a valid component xml file using xml_patch_path.
 
-        Check whether there is a component writer for your version by checking if it is in   cls.IMPLEMENTED_WRITE_VERSION
+        Check whether there is a component writer for your version by checking if it is in cls.IMPLEMENTED_WRITE_VERSION
 
         :param simulation_dir:
         :param params:
@@ -191,6 +191,12 @@ class Component(object):
 
     def _write560(self, params, *args, **kwargs):
         raise NotImplementedError
+
+    def __getstate__(self):
+        return self.__dict__
+
+    def __setstate__(self, state):
+        self.__dict__ = state
 
 
 class Inversion(Component):
