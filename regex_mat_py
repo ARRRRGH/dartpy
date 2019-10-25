@@ -1,5 +1,0 @@
-([A-Za-z_]+) = docNode\.createElement\('([A-Za-z_]+)'\)\n((.+\n)*?)\s+([A-Za-z_]+)\.appendChild\(\1\)
-$1 = et.SubElement($5, '$2')\n$3
-
-([A-Za-z_]+)\.setAttribute\(
-self._set_if_possible\($1,
