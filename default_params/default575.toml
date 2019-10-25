@@ -1,0 +1,599 @@
+# Basic simulation for DART version 5.7.5
+
+# Global settings ######################################################################################################
+
+dart_path =   'dart'                               # put here your DART executable (version 5.6.0 executable)
+version = '5.7.5'                       # make sure you really know what we are talking about
+
+simulation_name = "default575_simulation"
+simulation_location = 'location'
+
+output_location ='output'
+
+
+# Preprocessing ########################################################################################################
+
+## Geometry / coordinates
+#[geometry]
+#epsg = 4326
+#ROI = [-20, 20, -20, 20]    # left, right, bottom, top
+
+
+# Simulation ###########################################################################################################
+[phase]
+    calculatorMethod = 0                 # 0 = Flux-tracking, 1 = Monte-Carlo, 2 = LIDAR
+    
+    # AtmosphereRadiativeTransfer
+    toaToBoa = 0                         # 1 = Analytic model, 2 = Radiative transfer simulation, 3 = No atmosphere ( TOA = BOA )
+    
+    [phase.expert_flux_tracking]
+        acceleration_engine = 0
+        albedoThreshold = 1E-7               # the DART run stops if the variation of scene albedo of consecutive iterations is less than albedoThreshold
+        expertMode = 1
+        illuminationRepartitionMode = 2
+        lightPropagationThreshold = 1E-7     # any ray is discarded if its energy is getting less than lightPropagationThreshold
+        nbRandomPointsPerInteceptionAtmosphere = 1
+        nbSubSubcenterTurbidEmission = 40
+        nbSubcenterIllumination = 8          # number of rays simulated per voxel axis ( 10 per axis = 100 rays entering the voxel )
+        nbSubcenterVolume = 2
+        nbTrianglesWithinVoxelAcceleration = 10
+        nbThreads = 12                       # number of threads in DART ray tracing
+        surfaceBarycenterEnabled = 1
+         subFaceBarycenterEnabled = 1         # ??? TODO: Find out what this does!
+        subFaceBarycenterSubdivision = 1         # ??? TODO: Find out what this does!
+        useExternalScripts = 0               # ??? TODO: Find out what this does!
+        isInterceptedPowerPerDirectionForSpecularCheck = 0 # ??? TODO: Find out what this does!
+        maxNbSceneCrossing = 1000
+        sparseVoxelAcceleration = 1
+        thermalEmissionSurfaceSubdivision=0.01
+        triangleStorageMode = 0
+        distanceBetweenIlluminationSubCenters = 0.1
+
+    # SpectralIntervals
+    # SpectralIntervalsProperties
+    [phase.spectral]
+        deltaLambda= [0.001]               # band width (fwhm) in micrometer
+        meanLambda = [0.4005]                  # central wavelength in micrometer
+        spectralDartMode = [0]                 # 0 = R (reflectance mode), 1 = T + R (reflectance and thermal mode, 2 = T (thermal mode)
+
+        # SpectralDomainTir
+        temperatureMode = 0
+
+    # temperatureAtmosphere
+    [phase.temperature]
+        atmosphericApparentTemperature = 300.0
+        SKYLForTemperatureAssignation = 0.0         # skylTemperature
+        histogramThreshold = 5.0
+        distanceBetweenIlluminationSubCenters = 0.1 # ??? TODO: Find out what this does! -> could be the replacement of nbSubcenterIllumination...
+
+    # nodefluxtracking
+    [phase.flux_tracking]
+        gaussSiedelAcceleratingTechnique = 0
+        numberOfIteration = 5                # maximum number of iterations in flux tracking
+
+    [phase.image_illumination]
+        disableSolarIllumination = 0
+        disableThermalEmission = 0
+        sideIlluminationEnabled = 0
+
+    # nodeIlluminationMode
+    [phase.irradiance]
+        illuminationMode = 0                 # 0 = no subscene irradiance, 1 = subscene irradiance
+        irradianceMode = 0                   # 0 = Spectral irradiance (database), 1 = Band irradiance (user defined), 2 = Band radiance (input file) - BOA
+        irraDef = 0
+        # SpectralIrradiance
+        # CommonParameters
+        commonIrradianceCheckBox = 1
+        commonSkylCheckBox = 1
+        # SpectralIrradianceValue
+        Skyl = 0
+        bandNumber = 1
+        irradiance = 0
+        # irradianceDatabaseNode
+        databaseName = 'dart_atmosphere.db'  # name of atmosphere database
+        irradianceColumn = 'irradiance'
+        irradianceTable = 'TOASolar'
+        weightAtmosphereParameters = 1
+        weightReflectanceParameters = 1
+        sceneAverageTemperatureForPonderation = 300
+    
+    # DartProduct
+    [phase.products.common]
+        polarizationProducts = 0
+        radiativeBudgetProducts = 0          # incident, intercepted, absorbed and scattered radiance per voxel
+
+    [phase.products.flux_tracking]
+        allIterationsProducts = 1            # results obtained at each iteration
+        brfProducts = 1                      # BRF / radiance products (incl. images)
+#        lidarImageProducts = 0
+#        lidarProducts = 0
+        order1Products = 0                   # separate output for earth scene first order scattering
+        temperaturePerTrianglePerCell = 0
+
+    [phase.products.radiative_budget_properties]
+            binaryFormat = 1
+            budget3DParSurface = 0
+            budget3DParType = 0
+            budgetTotalParType = 0
+            budgetUnitModeR = 1
+            extrapolation = 1
+            fIRfARfSRfINTR1DProducts = 0
+            fIRfARfSRfINTR3DProducts = 1
+            fIRfARfSRfINTR2DProducts = 1
+            budget2DParType = 0
+
+        [phase.products.radiative_budget_properties.cell_components]
+            absorbed = 1
+            backEntry = 0
+            backExit = 0
+            bottomEntry = 0
+            bottomExit = 0
+            emitted = 1
+            frontEntry = 0
+            frontExit = 0
+            intercepted = 1
+            leftEntry = 0
+            leftExit = 0
+            rightEntry = 0
+            rightExit = 0
+            scattered = 1
+            topEntry = 1
+            topExit = 1
+            totalEntry = 0
+            totalExit = 0
+
+        [phase.products.radiative_budget_properties.element_components]
+            absorbed = 1
+            emitted = 1
+            intercepted = 1
+            scattered = 1
+
+    # BrfProductsProperties
+    [phase.products.brf_properties]
+        brfProduct = 1                       # mean BRF per image (text file with mean reflectance factor per upward direction
+        extrapolation = 1
+        horizontalOversampling = 1
+        ifSensorImageSimulation = 0          # Airborne image (-> define airborne sensor + viewing geometry)
+        image = 1                            # Images are generated
+        luminanceProducts = 1                # Radiance products in W per m2 per steradian per micrometer or [mW m-2 sr nm]
+        maximalThetaImages = 0.1             # maximal angle where images are generated as standard output
+        nb_scene = 1                         # number of repetitive scenes
+        outputHapkeFile = 0
+        projection = 1                       # Orhto-Image: 0 = no ortho images, 1 = energy conservation, 2 = reflectance conservation, 3 = industry standard (projected on scene surface)
+        sensorOversampling = 1
+        sensorPlaneprojection = 1            # Sensor plane images
+        pixelToSceneCorrespondences = 0
+        transmittanceImages = 0
+        centralizedBrfProduct = 1
+        # ExpertModeZone_Etalement
+        etalement = 2
+        # ExpertModeZone_Projection
+        keepNonProjectedImage = 0
+        generate_PerTypeProduct = 0
+        # ExpertModeZone_maskProjection
+        albedoImages = 1
+
+        order1only = 1
+        images_only = 1
+
+    [phase.products.DEM]
+        # maketModuleProducts
+        MNEProducts = 0                      # DEM
+        areaMaketProducts = 0                # total and per type area of the triangles in the scene in each voxel
+        coverRateProducts = 0                # total and per type projected cover area of the triangles in the scene
+        laiProducts = 0                      # LAI outputs in 2D and 3D
+        objectGeneration = 0
+
+        areaMaketPerType = 0
+        totalMaketArea = 1
+
+        coverRatePerType = 0
+        coverRatePrecision = 0.1
+        totalMaketCoverRate = 1
+
+        lai1DProducts = 1
+        lai3DProducts = 1
+        nonEmptyCellsLayer = 1
+
+    [phase.sensor]
+        # importPushbroomSensorFiles = 0
+        # SensorImageSimulation
+        importMultipleSensors = 0
+        fileN = ''
+
+        [[phase.sensor.pinhole]] # copy the following section for multiple pinholes
+            # Pinhole
+            defCameraOrientation = 0             # define the camera axis orientation
+            setImageSize = 0                     # by default the minimum area covered by the scene on the ground
+            ifFishEye = 0                        # TODO: fish_eye not yet defined
+
+            # Sensor
+            sensorPosX = 225                     # x coordinate of the camera [m]
+            sensorPosY = 150                     # y corrdinate of the camera [m]
+            sensorPosZ = 4429                    # camera altitude [m]
+
+            orientDefType = 0                    # intrinsic or tait_bryan
+            intrinsic_ZYZ = {cameraRotation = 0, cameraPhi = 225, cameraTheta = 15}
+            tait_bryan = {pitch = -90, roll = 180, rotDefBT = 5, yaw = 0}
+
+            defNbPixels = 1 # whether to specify or not
+            nbPixelsX = 60
+            nbPixelsY = 50
+
+            definitionFOV = 1 # fov or aov
+            fov = {sizeImageX = 30, sizeImageY = 25}
+            aov = {x = 30, y = 25}
+
+
+        [[phase.sensor.pushbroom]] # copy the following section for multiple pushbrooms
+            # Pushbroom
+            sensorPosX = 2225                   # x coordinate of the camera [m]
+            sensorPosY = 150                     # y corrdinate of the camera [m]
+            sensorPosZ = 4429                    # camera altitude [m]
+
+            is_import = 0                       # import viewing angles per pixel as text files
+            [phase.sensor.pushbroom.import]
+                altitude = 4430                      # scanner altitude [m]
+                offsetX = 1                          # offset x from the beginning of the map relative to the origin position of the scene
+                offsetY = 1                          # offset y from the beginning of the map relative to the origin position of the scene
+                phiFile = 'azimuth.txt'              # filename of azimuth angles file
+                resImage = 2                         # Image resolution (pixel size) [m]
+                thetaFile = 'zenith.txt'             # filename of zenith angles file
+
+            [phase.sensor.pushbroom.no_import]
+                pitchLookAngle = 0
+                platformAzimuth = 0
+                platformDirection = 0
+
+
+
+
+
+## Directions
+[directions]
+    exactDate = 2
+    ifCosWeighted = 0
+    numberOfPropagationDirections = 24 # number of directions that sample the 4pi space (which define the directions of flux tracking as well)
+    # Penumbra mode
+    penumbraMode = 0                    # penumbra simulation: TODO: handle the further options when penumbra mode is enabled!     
+    
+    # SunViewingAngles
+    [directions.sun]
+        sunViewingAzimuthAngle = 281        # sun azimuth angle (defined anti-clockwise from south) [?]
+        sunViewingZenithAngle = 48.1        # sun zenith angle ( nadir = 0?, at horizon = 89?) [?]
+        dayOfTheYear = -1                   # day of the year correction (distance sun - earth surface)
+    
+    # HotSpotProperties
+    [directions.hotspot]
+        hotSpotParallelPlane = 0
+        hotSpotPerpendicularPlane = 0
+        oversampleDownwardRegion = 1        # add additional directions in downward sun direction (used for flux tracking)
+        oversampleUpwardRegion = 0
+        # HotSpotDownwardRegion
+        numberOfDownwardDirections = 9     # number of directions in downward sun region
+        omegaDown = 0.02                        # region solid angle [sr]
+        # HotSpotUpwardRegion
+        numberOfUpwardDirections = 9       # number of directions in upward sun region
+        omegaUp = 0.02
+    
+    [directions.expert]
+        # ExpertModeZone
+        numberOfAngularSector = 10
+        numberOfLayers = 0
+    
+    # Region
+    [directions.region]
+        ifSquareShape = 0                   # 0 = Rectangle, 1 = Square
+        imageDirection = 0                  # generate images in this region: 0 = no images
+        numberOfRegionDirections = 9        # number of directions in region (used for flux tracking)
+        regionType = 0                      # 0 = Zenith+azimuth
+    
+    [directions.azimuth_zenith]
+        # ZenithAzimuth
+        directionAzimuthalAngle = 150       # center direction azimuth [?]
+        directionZenithalAngle = 6.5        # center direction zenith [?]
+        
+    # Rectangle
+    [directions.rectangle]
+        deltaPhi = 2                        # rectangle width delta azimuth [?]
+        deltaTheta = 2                      # rectangle width delta zenith [?]
+
+## Maket
+[maket]
+    voxelDim = [0.25, 0.25, 0.25] # dx, dy, dz
+    sceneDim = [900, 300, 0] # x, y, z
+    location = [0.0, 0.0, 0.0] # lat, lon, alt
+
+    useRandomGenerationSeed = 1
+    exactlyPeriodicScene = 1
+    dartZone = 0
+
+    [maket.optical_property]
+        type = 0
+        ident = 'Lamb_ro=1'
+        indexFctPhase = 0
+
+    [maket.thermal_property]
+        idTemperature = 'thermal_function_290_310'
+        indexTemperature = 0
+
+    [maket.topography]
+        presenceOfTopography = 0
+        fileName = 'DEM_2m.mp#'
+
+    [maket.DEM]
+        createTopography = 0        # read external DEM
+        caseDEM = 0
+        outputFileName = ''
+    
+    [maket.DEM5]
+        dataEncoding = 0 # little endian
+        dataFormat = 8 # double
+        fileName = 'dtm.bin' # DEM file to import
+
+
+[atmosphere]
+    [atmosphere.general]
+        isRadiativeTransfertInBottomAtmosphereDefined = 0
+        typeOfAtmosphere = 0
+        #atmosphereIterations =
+
+        writeTransferFunctions = 0                   # to_file transfer function (reusable by dart)
+        inputOutputTransfertFunctions = 0
+
+    [atmosphere.products]
+        atmosphereBRF_TOA = 0
+        atmosphereRadiance_BOA_before_coupling = 0
+        atmosphereRadiance_BOA_after_coupling = 0
+        order_1 = 0
+        atmosphereReport = 1
+
+    [atmosphere.components]
+        downwardingFluxes = 0
+        upwardingFluxes = 0
+
+    [atmosphere.expert]
+        number_iterationMax  = 10000
+        threshold_Atmos_scattering = 1e-4
+        extrapol_atmos = 0
+
+    [atmosphere.geometry]
+        discretisationAtmos = 0
+        heightOfSensor = 10000
+        minimumNumberOfDivisions = 2
+
+    [atmosphere.dimensions]
+        xAI = 100
+        yAI = 100
+        zAI = 500
+        hCFAI = 4000    # height midatmosphere
+        hCFHA = 80000   # height upper atmosphere
+        zHA = 2000
+        BA_altitude = 0
+
+    [atmosphere.water]
+        include = 1
+        defWaterAmount = 1
+        mulfactorH20 = 1.0
+
+    # if working with a database -> typeOfAtmosphere = 0
+    [atmosphere.optical_property_db]
+        temperatureModelName = "MIDLATSUM"
+        redefTemperature = 0
+        correctionBandModel = 1
+
+        [atmosphere.optical_property_db.gas]
+            group = 1
+            modelName = "MIDLATSUM"                 # gas optical properties
+            cumulativeModelName = "MIDLATSUM"
+            gasParametersModelName = "USSTD76"
+            ignoreGasForExtrapolation = 0
+            scaelOtherGases = 0
+            co2MixRate = 365.0
+
+        [atmosphere.optical_property_db.aerosol]
+             modelName = "USSTD76_RURALV23"       # aerosol vertical profile
+             optDepthFactor = 1                     # aerosol optical depth factor
+             hgParametersModelName = "RURALV23"     # aerosol Henyey Greenstein Parameters
+             cumulativeModelName = "RURALV23"
+             dataBaseName = "dart_atmosphere.db"
+             group = 1
+
+    # using monospectral -> type_of_atmosphere = 1
+    [atmosphere.optical_property]
+        temperature_file_name = "atmosphereTemperature.txt"     # aerosol Henyey Greenstein Parameters
+        correct_mid_point = 1
+        correct_earth_curvature = 1
+        
+        heyney_greenstein_a = 0.95
+        heyney_greenstein_g1 = 0.79
+        heyney_greenstein_g2 = 0.4
+
+        [atmosphere.optical_property.gas]
+            scale_factor = 8400
+            optical_depth = 0.049
+            transmittance = 0.75                     
+             
+        [atmosphere.optical_property.aerosol]
+             scale_factor = 1000
+             optical_depth = 0.202
+             albedo = 0.947
+
+        
+## object3d
+[object3d]
+    importObject3d = true
+    path2obj = "3D_Objects/Bubikon_StemObject_ModeledInMeshlab_swapYZ_0atMinCorner.obj"
+    location = [0, 0, 0]                           # x, y
+    objPosFile = "~/dart_565_run/Bubikon_Datasets/StemLocation_XY_recentered.txt"
+    dim = [0, 0, 0]                             # x, y, z, Caution: Hardcoded!, TODO: Find a way to extract dimensions from the object directly.
+	hasGroups = 0
+	hidden = 0
+	isDisplayed = 1
+	name = 'Object'
+	num = 0
+	objectColor = '125 0 125'
+	objectDEMMode = 0
+	
+	[object3d.scale]
+        xScaleDeviation = 0.0
+        xscale = 1.0
+        yScaleDeviation = 0.0
+        yscale = 1.0
+        zScaleDeviation = 0.0
+        zscale = 1.0
+        
+    [object3d.rotation]
+        xRotDeviation = 0.0
+        xrot = 0.0
+        yRotDeviation = 0.0
+        yrot = 0.0
+        zRotDeviation = 0.0
+        zrot = 0.0
+    
+    [object3d.typeprop]
+		sameOTObject = 1
+		identOType = 'Default_Object'
+		indexOT = '101'
+
+    [object3d.optical_property]
+        type = 0
+        indexFctPhase = 2
+        modelName = 'bark_decidous'
+        doubleFace = 0
+        isLAICalc = 0
+        isSingleGlobalLai = 0
+        sameOPObject = 1
+        
+    [object3d.temperature]
+        idTemperature = 'thermal_function_290_310'
+        indexTemp = 0
+        
+        
+[coeff_diff]
+    [coeff_diff.lop2d]
+        [[coeff_diff.lop2d.model]]
+            ModelName = 'litter'                # 2d reflectance model (how it is stored in database)
+            ident = 'litter'                      # phase function's name
+            is_fluorescent = 0                    # TODO: need maybe other parameters to be per model in list
+            lad = 5
+
+            databaseName = 'Lambertian.db'        # 2d reflectance database filename
+            roStDev = 0                      # reflectance variability
+            useMultiplicativeFactorForLUT = 1
+            useSpecular = 0
+            useProspectExternalModule = 0          # ProspectExternalModule
+            # lambertianNodeMultiplicativeFactorForLUT
+            useSameFactorForAllBands = 1
+            useSameOpticalFactorMatrixForAllBands = 0 #TODO: figure out what this new flag does! If this flag is set, the user has to define a further input file... this has to be implemented here as well first!
+            # lambertianMultiplicativeFactorForLUT
+            diffuseTransmittanceFactor = 1.0
+            directTransmittanceFactor = 1.0
+            diffuseTransmittanceAcceleration = 0
+            reflectanceFactor = 1.0
+            specularIntensityFactor = 1.0
+
+    [coeff_diff.understory_multi_functions]
+        # UnderstoryMultiFunctions
+        integrationStepOnPhi = 10
+        integrationStepOnTheta = 1
+        outputLADFile = 0
+#        useSpecular = 0  # now we can assign for each vegetation element if it has a specular element or not... default is off!
+#        specularEffects = 0 #has been replaced wiht integrationStepOnPhi and integrationStepOnTheta
+
+    # UnderstoryMulti
+    [coeff_diff.lop3d]
+        isSingleLeafSpec = 0
+
+        [[coeff_diff.lop3d.model]]
+            ModelName = 'leaf_top'                # 3d reflectance model (how it is stored in database)
+            lad = 5                               # leaf angle distribution: 0 = uniform, 1 = spherical, 2 = erectophile, 3 = planophile, 4 = extremophile, 5 = plagiophile,
+            ident = 'Turbid_Leaf_Deciduous_Phase_Function'            # phase function's name
+            dimFoliar = 0.01                      # leaf dimension (hot spot parameter)
+            hasDifferentModelForBottom = 0
+            thermalHotSpotFactor = 0.1
+
+            databaseName = 'Vegetation.db'        # 3d reflectance database filename
+            useMultiplicativeFactorForLUT = 1
+
+            useSpecular = 1
+            specularDatabaseName = 'Roughness.db'
+            specularModelName = 'basic'
+
+            # DirectionalClumpingIndexProperties
+            clumpinga = 0
+            clumpingb = 0
+            omegaMax = 0
+            omegaMin = 1
+
+            # ProspectExternalModule
+            useProspectExternalModule = 0
+            isFluorescent = 0
+            # understoryNodeMultiplicativeFactorForLUT
+            useSameFactorForAllBands = 1
+            useSameOpticalFactorMatrixForAllBands = 0 # if this factor is true, we have to declare an additional input file... not yet implemented! TODO!
+            useOpticalFactorMatrix = 0 # if this factor is true, we have to declare an additional input file... not yet implemented! TODO!
+
+            # understoryMultiplicativeFactorForLUT
+            LeafTransmittanceFactor = 1
+            reflectanceFactor = 1
+            diffuseTransmittanceAcceleration = 1
+    
+    # Temperatures
+    # ThermalFunction
+    [coeff_diff.temperature]
+        deltaT = 20.0
+        idTemperature = 'thermal_function_290_310'
+        meanT = 300.0
+        override3DMatrix = 0
+        singleTemperatureSurface = 1
+        useOpticalFactorMatrix = 0
+        usePrecomputedIPARs = 0
+
+    # Fluorescence
+    [coeff_diff.fluorescence]
+        fluorescenceProducts = 0            # should the fluorescence module be performed
+        fluorescenceFile = 0                # Flag if a fluorescence file should be used ## TODO: figure out how this works...
+
+# Plots
+[plots]
+    [plots.general]
+        isVegetation = 0                         # plots from landcover map
+        addExtraPlotsTextFile = 0                # flag to add extra plots with a text file... not sure how this works and how this could help
+        landcover_file = ''
+        voxelDim = [0.25, 0.25]
+
+        [plots.general.ground_types.vegetation]
+            ids = [1, 2]
+        [plots.general.ground_types.ground]
+            ids = [3, 4]
+
+    # PlotVegetationProperties
+    [plots.vegetation]
+        densityDefinition = 0                    # Definition of density, either LAI=0 or UI=1 (m2/m3)
+        verticalFillMode = 0                     # fill everything in the area below a certain threshold.
+        baseheight = 0                           # bottom height above ground [m]
+        height = [2, 4]                          # height of vegetation (mean) [m], low, mid
+        stDev = [0.0, 0.0]                       # standard deviation of vegetation height [m]
+        lai = [1, 1]                             # laiVegLow, laiVegMid [m2 m-2]
+
+        # VegetationOpticalPropertyLink
+        ident = ['turbid_understory_veg', 'turbid_understory_veg']      # phase function's name
+        indexFctPhase = [3, 3]                    # index of phase function
+
+    # GroundOpticalPropertyLink
+    [plots.ground]
+        ident = ['litter', 'litter']                  # phase functions name
+        indexFctPhase = [0, 0]                 # index of phase function
+        type = [0, 0]                          # type of phase function: 0 = lambertian, # 0 = ground, 1 = vegetation, 2 = ground + vegetation, 3 = fluid
+
+        # GroundThermalPropertyLink
+    [plots.temperature]
+        idTemperature = 'thermal_function_290_310'
+        indexTemperature = 0
+
+# Postprocessing #######################################################################################################
+
+[postprocessing]
+
+########################################################################################################################

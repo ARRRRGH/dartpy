@@ -3,7 +3,7 @@
 # Global settings ######################################################################################################
 
 dart_path =   'dart'                               # put here your DART executable (version 5.6.0 executable)
-dart_version = '5.6.0'                       # make sure you really know what we are talking about
+version = '5.6.0'                       # make sure you really know what we are talking about
 
 simulation_name = "default560_simulation"
 simulation_location = 'location'
@@ -124,17 +124,17 @@ output_location ='output'
         hCFHA = 80000   # height upper atmosphere
         zHA = 2000
 #        BA_altitude =
-    
+
+    [atmosphere.water]
+            include = 1
+            precipitableWaterAmount = 1.0
+
     # if working with a database -> typeOfAtmosphere = 0
     [atmosphere.optical_property_db]
-        hgParametersModelName = "RURALV23"     # aerosol Henyey Greenstein Parameters
         temperatureModelName = "MIDLATSUM"
         correctionBandModel = 1
         dataBaseName = "dart_atmosphere.db"
 
-        [atmosphere.optical_property_db.water]
-            include = 1
-            precipitableWaterAmount = 1.0
 
         [atmosphere.optical_property_db.gas]
             group = 1
@@ -147,7 +147,8 @@ output_location ='output'
              optDepthFactor = 1                     # aerosol optical depth factor
              group = 1                              # same model for all parameters
              modelName = "RURALV23"                 # aerosol optical properties
-    
+             hgParametersModelName = "RURALV23"     # aerosol Henyey Greenstein Parameters
+
     # using monospectral -> type_of_atmosphere = 1
     [atmosphere.optical_property]
         temperature_file_name = "atmosphereTemperature.txt"     # aerosol Henyey Greenstein Parameters
