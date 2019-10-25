@@ -80,11 +80,11 @@ class Component(object):
         if not ((valid_version and valid_file) or force):
             if not valid_version:
                 raise Exception(
-                    'Cannot load .' + xml_path + ' since file since there is a version mismatch. If you want to proceed'
+                    'Cannot load ' + xml_path + ' since file since there is a version mismatch. If you want to proceed'
                     + ' use force=True.')
             if not valid_file:
                 raise Exception(
-                    'Cannot load .' + xml_path + ' since file it is not a valid dart ' + cls.COMPONENT_NAME + ' file.')
+                    'Cannot load ' + xml_path + ' since file it is not a valid dart ' + cls.COMPONENT_NAME + ' file.')
         else:
             return cls(simulation_dir, (xml_root, xml_path), version)
 

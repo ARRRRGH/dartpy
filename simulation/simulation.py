@@ -1,3 +1,5 @@
+import re
+
 import utils.xml_utils
 from . import components as cmp
 import utils.general
@@ -84,7 +86,7 @@ class Simulation(object):
 
     @classmethod
     def from_simulation(cls, path, config=None, default_patch=False, simulation_patch=True, xml_patch=None,
-                        copy_xml=None, use_db=None, *args, **kwargs):
+                        copy_xml=None, no_gen=None, use_db=None, force=False, *args, **kwargs):
         """
         Create a duplicate simulation. Any supplied config is patched to the config in the simulation direct if there is
         one and if simulation_patch=True.
@@ -98,7 +100,6 @@ class Simulation(object):
         :param kwargs:
         :return:
         """
-        # TODO: add patching for mixed toml and xml when suppliying a config_file
 
         simulation_config_path = utils.general.create_path(path, CONFIG_FILE_NAME)
 
@@ -106,7 +107,7 @@ class Simulation(object):
         if not user_config_valid and config is not None:
             raise Exception('config file path does not exist')
 
-        simulation_patch_valid = simulation_patch  and os.path.exists(simulation_config_path)
+        simulation_patch_valid = simulation_patch and os.path.exists(simulation_config_path)
 
         # if there is a config_file in the simulation directory and a user config, the configs are patched
         if simulation_patch_valid and user_config_valid:
@@ -120,14 +121,18 @@ class Simulation(object):
             # generate valid xml_patch_path input
             xml_patch = cls._convert_component_to_path(xml_patch, path)
 
-            # generate all components that are not copied
-            sim = cls(config, default_patch=default_patch, no_gen=copy_xml, xml_patch=xml_patch, *args, **kwargs)
+            # generate all components that are not copied and are not excluded by no_gem
+            no_gen_tot = copy_xml = cls._convert_component_kwarg(copy_xml)
+            if no_gen is not None:
+                no_gen_tot = no_gen_tot.union(cls._convert_component_kwarg(no_gen))
 
-            # copy component xml files
-            for comp in sim.non_generated_components:
+            print(no_gen_tot)
+            sim = cls(config, default_patch=default_patch, no_gen=no_gen_tot, xml_patch=xml_patch, *args, **kwargs)
+
+            # copy component xml files of copy_xml components
+            for comp in copy_xml:
                 sim.components[comp] = COMPONENTS[comp].from_simulation(simulation_dir=sim.path, path=path,
-                                                                        version=sim.version)
-
+                                                                        version=sim.version, force=force)
         else:
             raise Exception('Simulation directory ' + path + ' does not exist.')
         return sim
@@ -146,14 +151,29 @@ class Simulation(object):
         if kwarg is None:
             return []
 
-        if type(kwarg) is not str:
-            return kwarg
+        if hasattr(kwarg, '__iter__'):
+            return set(kwarg)
 
-        if kwarg == 'all':
-            kwarg = list(COMPONENTS.keys())
-        elif kwarg == 'not_implemented':
-            kwarg = [comp for comp in COMPONENTS.keys() if not COMPONENTS[comp].is_implemented()]
+        lis = re.findall('(\+|\-)?\s?([a-zA-Z_]+)', kwarg)
+        kwarg = set()
+        for op, kw in lis:
+            if kw == 'all':
+                kw = set(COMPONENTS.keys())
+            elif kw == 'not_implemented':
+                kw = set([comp for comp in COMPONENTS.keys() if not COMPONENTS[comp].is_implemented()])
+            elif kw == 'implemented':
+                kw = set([comp for comp in COMPONENTS.keys() if COMPONENTS[comp].is_implemented()])
+            elif kw in COMPONENTS.keys():
+                kw = set([kw])
+            else:
+                raise Exception('kwarg ' + str(kw) + ' is not a component.')
 
+            if op == '' or op == '+':
+                kwarg = kwarg.union(kw)
+
+            elif op == '-':
+                kwarg = kwarg.difference(kw)
+        print(kwarg)
         return kwarg
 
     def _create_simulation_dir(self, config, version=None, *args, **kwargs):
