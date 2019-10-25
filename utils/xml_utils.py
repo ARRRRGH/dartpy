@@ -37,18 +37,28 @@ def merge_dicts(src_dict, patch_dict, ignore=None):
     return src_dict
 
 
-def merge_xmls(src_xml, patch_xml):
+def merge_xmls(src_xml, patch_xml, remove_empty_paths=False, removing_level=3):
     src = etree_to_dict(src_xml)
     patch = etree_to_dict(patch_xml)
     patched = merge_dicts(src, patch, ignore=[None])
     patched_xml = dict_to_etree(patched)
-    for elem in patched_xml.iter():
-        for item in elem.iter():
-            if len(item) < 1:
-                elem.remove(item)
+
+    if remove_empty_paths:
+        tree = et.ElementTree(patched_xml)
+        empty = patched_xml.xpath(".//*[not(node())]")
+
+        ok_empty = set()
+        while len(empty) != 0:
+            for element in empty:
+                path = tree.getpath(element).split('/')[1:]
+
+                if len(element.attrib) == 0 and len(path) > removing_level:
+                    element.getparent().remove(element)
+                else:
+                    ok_empty.add(element)
+            empty = set(patched_xml.xpath(".//*[not(node())]")).difference(ok_empty)
 
     return patched_xml
-
 
 
 def etree_to_dict(t):

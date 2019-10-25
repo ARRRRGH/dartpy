@@ -89,7 +89,7 @@ class Component(object):
             return cls(simulation_dir, (xml_root, xml_path), version)
 
     def patch_to_xml(self, xml_path):
-        self.xml_root = utils.xml_utils.merge_xmls(self._read(xml_path), self.xml_root)
+        self.xml_root = utils.xml_utils.merge_xmls(self._read(xml_path), self.xml_root, remove_empty_paths=True)
         self._is_patched_to_xml = True
 
     def to_file(self):
@@ -125,7 +125,6 @@ class Component(object):
             self._write560(params, *args, **kwargs)
 
         if self.xml_patch_path is not None:
-            print(self.xml_patch_path)
             self.patch_to_xml(self.xml_patch_path)
 
     @classmethod
@@ -1018,7 +1017,7 @@ class Maket(Component):
         self._set(scene_dimensions, 'y', 'sceneDim.' + str(0))
 
         # ground
-        soil = et.SubElement(self.xml_root, 'Soil')
+        soil = et.SubElement(maket, 'Soil')
 
         # optical property
         OpticalPropertyLink = et.SubElement(soil, 'OpticalPropertyLink')
@@ -1040,7 +1039,7 @@ class Maket(Component):
             self._set(DEM_properties, 'createTopography', '0')
 
         else:
-            topography = et.SubElement(self.xml_root, 'Topography')
+            topography = et.SubElement(soil, 'Topography')
             self._set(topography, 'presenceOfTopography', 'topography.presenceOfTopography')
 
             topography_properties = et.SubElement(topography, 'TopographyProperties')
@@ -1060,7 +1059,7 @@ class Maket(Component):
             self._set(DEM_5, 'fileName', 'DEM5.fileName')
 
         # geo-location
-        location = et.SubElement(self.xml_root, 'LatLon')
+        location = et.SubElement(maket, 'LatLon')
         self._set(location, 'altitude', 'location.2')
         self._set(location, 'latitude', 'location.0')
         self._set(location, 'longitude', 'location.1')

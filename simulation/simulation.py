@@ -126,7 +126,6 @@ class Simulation(object):
             if no_gen is not None:
                 no_gen_tot = no_gen_tot.union(cls._convert_component_kwarg(no_gen))
 
-            print(no_gen_tot)
             sim = cls(config, default_patch=default_patch, no_gen=no_gen_tot, xml_patch=xml_patch, *args, **kwargs)
 
             # copy component xml files of copy_xml components
@@ -141,20 +140,27 @@ class Simulation(object):
     def _convert_component_to_path(cls, lis, simulation_dir_path):
         lis = cls._convert_component_kwarg(lis)
 
+        ret = []
         for i, l in enumerate(lis):
             if type(l) is str and l in COMPONENTS.keys():
-                lis[i] = (l, utils.general.create_path(simulation_dir_path, 'input', COMPONENTS[l].COMPONENT_FILE_NAME))
-        return lis
+                ret.append((l, utils.general.create_path(simulation_dir_path, 'input',
+                                                         COMPONENTS[l].COMPONENT_FILE_NAME)))
+            elif type(l) is tuple:
+                ret[i].append(l)
+            else:
+                raise Exception('Must be a list with elements of type either tuple or string.')
+
+        return ret
 
     @staticmethod
     def _convert_component_kwarg(kwarg):
         if kwarg is None:
-            return []
+            return set()
 
-        if hasattr(kwarg, '__iter__'):
+        if type(kwarg) is not str:
             return set(kwarg)
 
-        lis = re.findall('(\+|\-)?\s?([a-zA-Z_]+)', kwarg)
+        lis = re.findall(r'(\+|\-)?\s?([a-zA-Z_]+)', kwarg)
         kwarg = set()
         for op, kw in lis:
             if kw == 'all':
@@ -164,16 +170,15 @@ class Simulation(object):
             elif kw == 'implemented':
                 kw = set([comp for comp in COMPONENTS.keys() if COMPONENTS[comp].is_implemented()])
             elif kw in COMPONENTS.keys():
-                kw = set([kw])
+                kw = {kw}
             else:
                 raise Exception('kwarg ' + str(kw) + ' is not a component.')
-
             if op == '' or op == '+':
                 kwarg = kwarg.union(kw)
 
             elif op == '-':
                 kwarg = kwarg.difference(kw)
-        print(kwarg)
+
         return kwarg
 
     def _create_simulation_dir(self, config, version=None, *args, **kwargs):
