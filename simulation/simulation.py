@@ -7,29 +7,22 @@ import utils.general
 import toml
 import logging
 from pkg_resources import parse_version
-import pickle as pkl
 import dill
 import os
 from time import gmtime, strftime
 import re
 
 
-# TODO: add all needed xml components and mark with NONE
 COMPONENTS = {'atmosphere': cmp.Atmosphere, 'phase': cmp.Phase, 'directions': cmp.Directions, 'plots': cmp.Plots,
               'coeff_diff': cmp.CoeffDiff, 'object3d': cmp.Object3d, 'maket': cmp.Maket, 'inversion': cmp.Inversion,
               'trees': cmp.Trees, 'triangleFile': cmp.TriangleFile, 'urban': cmp.Urban, 'water': cmp.Water}
 
 CONFIG_FILE_NAME = 'config.toml'
-DEFAULT_CONFIG_FILE_PER_VERSION = {'5.6.0': '../default_params/default560.toml',
-                                   '5.7.5': '../default_params/default575.toml'}
+DEFAULT_CONFIG_FILE_PER_VERSION = {'5.7.5': '../default_params/default575.toml'}
 DILL_FIL = 'simulation.dill'
 
 
 class Simulation(object):
-    """
-    Class managing reading, writing and running a DART simulation. This class is meant to be version independent.
-    """
-
     def __init__(self, config, default_config=None, default_patch=True, xml_patch=None, land_cover=None, maket=None,
                  no_gen=None, version='5.7.5', simulation_name='new', simulation_location='./test_simulations',
                  dart_path=None, *args, **kwargs):
@@ -244,7 +237,8 @@ class Simulation(object):
     def __getstate__(self):
         save = self.__dict__.copy()
 
-        # TODO: need this because of some toml dict type messing up the pickling, find way to cast these dicts to builtin dict
+        # TODO: need this because of some toml dict type messing up the pickling, find way to cast these
+        # dicts to builtin dict
         save.pop('config')
         save.pop('component_params')
         return save
@@ -252,7 +246,8 @@ class Simulation(object):
     def __setstate__(self, state):
         self.__dict__ = state
 
-        # TODO: need this because of some toml dict type messing up the pickling, find way to cast these dicts to builtin dict
+        # TODO: need this because of some toml dict type messing up the pickling, find way to cast these
+        # dicts to builtin dict
         self.config = toml.load(self.user_config_path)
         self.component_params = {}
         self._split_config()

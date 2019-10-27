@@ -2,7 +2,7 @@
 
 # Global settings ######################################################################################################
 
-dart_path =   'dart'                               # put here your DART executable (version 5.6.0 executable)
+dart_path =   'dart'                    # put here your DART executable (version 5.6.0 executable)
 version = '5.7.5'                       # make sure you really know what we are talking about
 
 simulation_name = "default575_simulation"
@@ -12,11 +12,7 @@ output_location ='output'
 
 
 # Preprocessing ########################################################################################################
-
-## Geometry / coordinates
-#[geometry]
-#epsg = 4326
-#ROI = [-20, 20, -20, 20]    # left, right, bottom, top
+[[preprocessing]]
 
 
 # Simulation ###########################################################################################################
@@ -300,6 +296,12 @@ output_location ='output'
 
 ## Maket
 [maket]
+
+    ## Geometry / coordinates
+    #[geometry]
+    #epsg = 4326
+    #ROI = [-20, 20, -20, 20]    # left, right, bottom, top
+
     voxelDim = [0.25, 0.25, 0.25] # dx, dy, dz
     sceneDim = [900, 300, 0] # x, y, z
     location = [0.0, 0.0, 0.0] # lat, lon, alt
