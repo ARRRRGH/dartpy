@@ -18,12 +18,13 @@ def base_test():
 def from_simulation_test():
     sim = simul.Simulation.from_simulation(
         config='D:/dartpy/config_templates/base575.toml',
-        default_patch=True,
+        default_patch=False,
         version='5.7.5',
         base_path='D:/DART_575_v1140/DART_575/user_data/simulations/simulationTest',
         copy_xml='not_implemented + atmosphere',
         simulation_name='new',
-        simulation_location='D:/DART_575_v1140/DART_575/user_data/simulations/test')
+        simulation_location='D:/DART_575_v1140/DART_575/user_data/simulations/test',
+        xml_patch='implemented - atmosphere')
     sim.to_file()
     return sim
 
@@ -63,6 +64,11 @@ def load_test():
     sim = from_simulation_xml_patch_test()
     sim.load(sim.path)
     return sim
+
+def test_run():
+    sim = from_simulation_xml_patch_test()
+    sim.run()
+
 
 
 def diff_xmls(path1, path2, path3):

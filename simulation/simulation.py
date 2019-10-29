@@ -83,6 +83,10 @@ class Simulation(object):
     def is_complete(self):
         return None in self.components.values()
 
+    @property
+    def user_config_path(self):
+        return utils.general.create_path(self.path, CONFIG_FILE_NAME)
+
     @classmethod
     def load(cls, path):
         with open(utils.general.create_path(path, DILL_FIL), 'rb') as f:
@@ -218,18 +222,21 @@ class Simulation(object):
 
         # Path
         time = strftime("%Y-%m-%d-%H_%M_%S", gmtime())
-        self.simulation_name = user_config['simulation_name'] + '_' + time
-        self.simulation_location = user_config['simulation_location']
-        self.path = utils.general.create_path(self.simulation_location, self.simulation_name)
+        simulation_name = user_config['simulation_name'] + '_' + time
+        simulation_location = user_config['simulation_location']
+        self.path = utils.general.create_path(simulation_location, simulation_name)
         if os.path.exists(self.path):
             logging.exception(
                 'Simulation directory already exists! You cannot create a new simulation in the same directory. ' +
                 'Use from_simulation to reload a simulation.')
         else:
             os.makedirs(self.path)
-            self.user_config_path = utils.general.create_path(self.path, CONFIG_FILE_NAME)
+            self.save(user_config)
+
+    def save(self, config=None):
+        if config is not None:
             with open(self.user_config_path, 'w+') as f:
-                f.write(toml.dumps(user_config))
+                f.write(toml.dumps(config))
 
         with open(utils.general.create_path(self.path, DILL_FIL), 'wb') as f:
             dill.dump(self, f, protocol=dill.HIGHEST_PROTOCOL)

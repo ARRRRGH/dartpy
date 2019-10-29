@@ -2,7 +2,7 @@
 
 # Global settings ######################################################################################################
 
-dart_path =   'dart'                    # put here your DART executable (version 5.6.0 executable)
+dart_path =   'dart'                    # put here the path to the dart dir
 version = '5.7.5'                       # make sure you really know what we are talking about
 
 simulation_name = "default575_simulation"
@@ -10,9 +10,29 @@ simulation_location = 'location'
 
 output_location ='output'
 
+# Run Params  ##########################################################################################################
+
+
+
+# Data Bases  ##########################################################################################################
+[db]
+    # crop =
+    # coord_sys =
+
+[db.dtm]
+    # path =
+
+[db.pai]
+    # path =
+
+[db.phase3d]
+    # path =
+
+[db.LOPs]
+    # path =
 
 # Preprocessing ########################################################################################################
-[[preprocessing]]
+[preprocessing]
 
 
 # Simulation ###########################################################################################################
