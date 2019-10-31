@@ -8,44 +8,103 @@ from functools import partial
 import utils.general
 import simulation.simulation as simul
 
+
 class Runner(object):
     """
-    Runner class creates schedules run executions.
+    Runner class schedules run executions.
     """
-    def __init__(self, run_params, n_jobs=1, *args, **kwargs):
-        self.run_params = run_params
+    def __init__(self, runs, n_jobs=1, seq=False, db_update=None, update_atmosphere_hook=None,
+                 update_lambertian_hook=None, create_dtm_hook=None, update_vegetation_hook=None, *args, **kwargs):
+
+        self.update_atmosphere_hook = update_atmosphere_hook
+        self.update_lambertian_hook = update_lambertian_hook
+        self.update_vegetation_hook = update_vegetation_hook
+
+        self.runs = runs
         self.jobs = []
         self.n_jobs = n_jobs
+        if seq:
+            self.n_jobs = 1
+
+        self.db_update = db_update
 
         # TODO: check if simulation paths are up to date
-        # TODO: merge run_params with run params in simulation.params then save simulation
+        # TODO: merge runs with run params in simulation.params then save simulation
 
-    def _split_runner_in_jobs(self, *args, **kwargs):
-        if type(self.run_params) is list:
-            for runner in self.run_params:
+    def _create_jobs(self, *args, **kwargs):
+        if type(self.runs) is list:
+            for runner in self.runs:
                 if type(runner) is list:
-                    self.jobs.append(delayed(SequenceRunner(run_params=self.run_params, *args, **kwargs)).run)
+                    self.jobs.append(delayed(RunEnvironment(runs=self.runs, seq=True, *args, **kwargs)).run)
                 elif type(runner) is str:
                     self.jobs.append(delayed(SimulationRunner(runner).run)(*args, **kwargs))
                 elif type(runner) is SimulationRunner:
                     self.jobs.append(delayed(runner.run)(*args, **kwargs))
                 elif type(runner) is dict:
-                    if 'sequence' in runner:
-                        self.jobs.append(delayed(SequenceRunner(run_params=runner['sequence'], **runner).run))
-                    if 'parallel' in runner:
-                        self.jobs.append(delayed(SequenceRunner(run_params=runner['parallel'], **runner).run))
+                    if 'runs' in runner:
+                        self.jobs.append(delayed(RunEnvironment(runs=runner['sequence'], **runner).run))
                 else:
                     self.jobs.append(delayed(runner.run))
         else:
-            raise Exception('run_params must be a list of simulations or paths to simulations or else valid' +
-                            ' run_params dicts.')
+            raise Exception('runs must be a list of simulations or paths to simulations or else valid' +
+                            ' runs dicts.')
 
     def run(self, *args, **kwargs):
-        self._split_runner_in_jobs(*args, **kwargs)
+        self._create_jobs(*args, **kwargs)
         Parallel(n_jobs=self.n_jobs)(self.jobs)
 
+
+class RunEnvironment(Runner):
+    """
+    A run environment can load the needed databases and run simulations in with these databases either sequentially or
+    in parallel.
+    """
+    def __init__(self, keep_maket=False, keep_dtm=False, *args, **kwargs):
+        Runner.__init__(self, *args, **kwargs)
+        self.keep_maket = keep_maket
+        self.keep_dtm = keep_dtm
+
+        runner = self.runs[0]
+        if runner is str:
+            runner = SimulationRunner(runner)
+
+        self._create_db(runner.simulation)
+        runner.run(only_prepare=True)
+
+        if self.keep_maket:
+            self._copy_maket(runner.simulation)
+        if self.keep_dtm:
+            self._copy_dtm(runner.simulation)
+
+        self.jobs.append(delayed(runner.complete)(*args, **kwargs))
+
+    def _create_jobs(self, *args, **kwargs):
+        if len(self.runs) > 1:
+            # check that all elements are singular, nesting is not supported
+            for i, runner in enumerate(self.runs[1:]):
+                if not type(runner) is str or type(runner) is SimulationRunner:
+                    raise Exception('runs must be list of str or SimulationRunners')
+
+                if type(runner) is str:
+                    runner = SimulationRunner(runner, *args, **kwargs)
+                self.jobs.append(delayed(runner.run)(*args, **kwargs))
+
+        self.jobs.append(delayed(self._restore_db))
+
     def _create_db(self, simulation):
-        pass
+        if self.db_update is None:
+            # TODO: mutlithreading?
+            # copy existing db to safe place
+
+            # apply hooks
+            if self.update_atmosphere_hook is not None:
+                self.update_atmosphere_hook(simulation)
+
+            if self.update_vegetation_hook is not None:
+                self.update_atmosphere_hook(simulation)
+
+            if self.update_lambertian_hook is not None:
+                self.update_atmosphere_hook(simulation)
 
     def _copy_maket(self, src_simulation, simulations):
         pass
@@ -57,89 +116,25 @@ class Runner(object):
         pass
 
 
-class SequenceRunner(Runner):
-    """
-    A sequence runner preserves the order of run executions. There is no sharing of databases between two runs in a
-    sequence. It deletes the created database after each run.
-    """
-    def __init__(self, keep_db=False, keep_maket=False, keep_dtm=False, *args, **kwargs):
-        Runner.__init__(self, *args, **kwargs)
-        self.keep_db = keep_db
-        self.keep_maket = keep_maket
-        self.keep_dtm = keep_dtm
-        self.n_jobs = 1 # fix the number of jobs to assure sequential execution
-
-    def _split_runner_in_jobs(self, *args, **kwargs):
-        # while looping check that all elements are singular, nesting is not supported
-        for i, runner in enumerate(self.run_params):
-            if not type(runner) is str or type(runner) is SimulationRunner:
-                raise Exception('run_params must be list of str or SimulationRunners')
-
-            if type(runner) is str:
-                runner = SimulationRunner(runner, *args, **kwargs)
-            if i == 0:
-                self.jobs.append(delayed(self._create_db)(runner.simulation))
-                self.jobs.append(delayed(runner.run))
-                if self.keep_maket:
-                    self.jobs.append(delayed(self._copy_maket)(runner.simulation))
-                if self.keep_dtm:
-                    self.jobs.append(delayed(self._copy_dtm)(runner.simulation))
-            else:
-                if not self.keep_db:
-                    self.jobs.append(delayed(self._create_db))
-                self.jobs.append(delayed(runner.run)(*args, **kwargs))
-
-        self.jobs.append(delayed(self._restore_db))
-
-class ParallelRunner(Runner):
-    """
-    A parallel runner runs dart in parallel. As long as I don't know whether there is a possibility to add external
-    databases, use of a parallel runner assumes that simulations in it rely on the same databases.
-    """
-    def __init__(self, keep_maket=False, keep_dtm=False, *args, **kwargs):
-        Runner.__init__(self, *args, **kwargs)
-        self.keep_maket = keep_maket
-        self.keep_dtm = keep_dtm
-
-        runner = self.run_params[0]
-        if runner is str:
-            runner = SimulationRunner(runner)
-
-        self._create_db(runner.simulation)
-        runner.run(prepare=True)
-
-        if self.keep_maket:
-            self._copy_maket(runner.simulation)
-        if self.keep_dtm:
-            self._copy_dtm(runner.simulation)
-
-        self.jobs.append(delayed(runner.complete)(*args, **kwargs))
-
-    def _split_runner_in_jobs(self, *args, **kwargs):
-        # while looping check that all elements are singular, nesting is not supported
-        if len(self.run_params) > 1:
-            for i, runner in enumerate(self.run_params[1:]):
-                if not type(runner) is str or type(runner) is SimulationRunner:
-                    raise Exception('run_params must be list of str or SimulationRunners')
-
-                if type(runner) is str:
-                    runner = SimulationRunner(runner, *args, **kwargs)
-                self.jobs.append(delayed(runner.run)(*args, **kwargs))
-
-        self.jobs.append(delayed(self._restore_db))
-
-
 class SimulationRunner(object):
     """
     Class dispatching and handling the run of a single simulation.
     """
 
-    def __init__(self, simulation, *args, **kwargs):
+    def __init__(self, simulation, pre_dem_hook=None, post_maket_hook=None, create_dtm_hook=None,
+                 *args, **kwargs):
+
         self.simulation = simulation
 
-    def run(self, prepare=True, *args, **kwargs):
+        self.create_dtm_hook = create_dtm_hook
+        self.post_maket_hook = post_maket_hook
+        
+        self.working_dir = None
+        self.simulation_name = None
+
+    def run(self, only_prepare=False, *args, **kwargs):
         self.prepare(self.simulation)
-        if not prepare:
+        if not only_prepare:
             self.complete(self.simulation)
 
     def prepare(self, simulation, dart_path=None, *args, **kwargs):
@@ -152,55 +147,42 @@ class SimulationRunner(object):
 
         sim_loc = utils.general.create_path(dart_path, 'user_data' 'simulations')
 
-        fold, sim_name = os.path.split(simulation.path)
-        sim_path = os.path.abspath(utils.general.create_path(sim_loc, sim_name))
+        fold, self.simulation_name = os.path.split(simulation.path)
+        self.working_dir = os.path.abspath(utils.general.create_path(sim_loc, self.simulation_name))
 
         # TODO: does folder *really* need to be in DART directory?
-        does_sim_name_exist = os.path.exists(sim_path)
+        does_sim_name_exist = os.path.exists(self.working_dir)
         if not simulation.path.startswith(os.path.abspath(dart_path)):
             if not does_sim_name_exist:
-                shutil.copytree(simulation.simulation_location, sim_path)
+                shutil.copytree(simulation.path, self.working_dir)
                 # Update simulation params
-                simulation.path = sim_path
+                self.working_dir = self.working_dir
             else:
-                raise Exception('Simulation with the name ' + simulation.name +
+                raise Exception('Simulation with the name ' + self.simulation_name +
                                 ' does already exist in simulation directory.')
+        else:
+            self.working_dir = simulation.path
 
         self._dart_prep_runs(simulation, dart_path, *args, **kwargs)
 
     def complete(self, *args, **kwargs):
-        fold, simulation_name = os.path.split(self.simulation.path)
-        self._run_dart_only(simulation_name, self.dart_path, *args, **kwargs)
+        self._run_dart_only(self.simulation_name, self.dart_path, *args, **kwargs)
 
     def _dart_prep_runs(self, simulation, dart_path, *args, **kwargs):
-        fold, simulation_name = os.path.split(simulation.path)
-
         # TODO: find out if order matters, if not run this multithreaded
-        self._run_dem(simulation_name, dart_path, simulation, *args, **kwargs)
-        self._run_direction(simulation_name, dart_path, *args, **kwargs)
-        self._run_phase(simulation_name, dart_path, *args, **kwargs)
-        self._run_maket(simulation_name, dart_path, simulation, *args, **kwargs)
-        self._run_atmosphere(simulation_name, dart_path, *args, **kwargs)
+        self._run_dem(self.simulation_name, dart_path, simulation, *args, **kwargs)
+        self._run_direction(self.simulation_name, dart_path, *args, **kwargs)
+        self._run_phase(self.simulation_name, dart_path, *args, **kwargs)
+        self._run_maket(self.simulation_name, dart_path, simulation, *args, **kwargs)
+        self._run_atmosphere(self.simulation_name, dart_path, *args, **kwargs)
 
     def _dart_run(self, simulation, dart_path, n_prep_threads=4, *args, **kwargs):
-        fold, simulation_name = os.path.split(simulation.path)
         self._dart_prep_runs(simulation, dart_path, *args, **kwargs)
-        self._run_dart_only(simulation_name, dart_path, *args, **kwargs)
+        self._run_dart_only(self.simulation_name, dart_path, *args, **kwargs)
 
-    def _update_db(self, simulation, update_atmosphere_hook=None, update_lambertian_hook=None,
-                   update_vegetation_hook=None):
-        if update_atmosphere_hook is not None:
-            update_atmosphere_hook(simulation)
-
-        if update_lambertian_hook is not None:
-            update_lambertian_hook(simulation)
-
-        if update_vegetation_hook is not None:
-            update_vegetation_hook(simulation)
-
-    def _run_dem(self, simulation_name, dart_path, simulation, create_dtm_hook=None, shell=True):
-        if create_dtm_hook is not None:
-            create_dtm_hook(simulation)
+    def _run_dem(self, simulation_name, dart_path, simulation, shell=True):
+        if self.create_dtm_hook is not None:
+            self.create_dtm_hook(simulation)
         cmd = utils.general.create_path(dart_path, 'tools/linux/dart-dem-edit.sh') + ' ' + simulation_name
         p = sp.Popen(cmd, shell=shell)
         return p.communicate()
@@ -210,12 +192,12 @@ class SimulationRunner(object):
         p = sp.Popen(cmd, shell=shell)
         return p.communicate()
 
-    def _run_maket(self, simulation_name, dart_path, simulation, adapt_maket_hook=None, shell=True):
+    def _run_maket(self, simulation_name, dart_path, simulation, shell=True):
         cmd = utils.general.create_path(dart_path, 'tools/linux/dart-maket-edit.sh') + ' ' + simulation_name
         p = sp.Popen(cmd, shell=shell)
-        if adapt_maket_hook is not None:
-            maket_path = utils.general.create_path(dart_path, 'output', 'maket.txt')
-            adapt_maket_hook(simulation, maket_path)
+        if self.post_maket_hook is not None:
+            out_path = utils.general.create_path(dart_path, 'output')
+            self.post_maket_hook(simulation, out_path)
         return p.communicate()
 
     def _run_phase(self, simulation_name, dart_path, shell=True):
