@@ -70,7 +70,6 @@ def test_run():
     sim.run()
 
 
-
 def diff_xmls(path1, path2, path3):
     diff = xmldiff.main.diff_files(path1, path2, formatter=xmldiff.formatting.XMLFormatter())
     with open(utils.general.create_path(path3, 'input', 'diff.xml'), 'w') as f:
@@ -81,4 +80,4 @@ if __name__ == '__main__':
     #from_simulation_test()
     # base_test()
     #print(none_test().__dict__)
-    print(load_test().component_params)
+   test_run()

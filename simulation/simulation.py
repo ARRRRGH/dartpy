@@ -319,4 +319,4 @@ class Simulation(object):
 
         :return:
         """
-        run.SimulationRunner(self).run(*args, **kwargs)
+        run.SimulationRunner(self, *args, **kwargs).run(*args, **kwargs)
